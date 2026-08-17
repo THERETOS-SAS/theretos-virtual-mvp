@@ -2,367 +2,183 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>THERETOS Virtual</title>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#090713">
+  <meta name="description" content="THERETOS Arcade: practica gratis o juega retos de habilidad para acumular eTickets.">
+  <title>THERETOS Arcade | Juegos de habilidad</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <div class="phone-wrap">
-
+  <div class="app-shell">
     <div id="screen-home" class="screen active">
-      <div class="header">
-        <div class="hamburger"><span></span></div>
-
-        <div class="logo-wrap">
-          <img class="brand-logo" src="logo-theretos.png" alt="THERETOS" onerror="this.style.display='none'; document.getElementById('fallback-logo').style.display='block';">
-          <div id="fallback-logo" style="display:none;">
-            <div class="logo-title">
-              <span class="l-t">T</span><span class="l-h">H</span><span class="l-e">E</span><span class="l-r">R</span><span class="l-e2">E</span><span class="l-t2">T</span><span class="l-o">O</span><span class="l-s">S</span>
+      <header class="topbar">
+        <details class="nav-menu">
+          <summary class="menu-trigger" aria-label="Abrir menú"><span></span><span></span><span></span></summary>
+          <div class="menu-backdrop" onclick="this.closest('details').removeAttribute('open')"></div>
+          <aside class="nav-panel" aria-label="Menú principal">
+            <div class="nav-panel__head">
+              <div class="menu-brand"><strong>THERETOS</strong><span>ARCADE</span></div>
+              <button class="nav-close" type="button" onclick="this.closest('details').removeAttribute('open')" aria-label="Cerrar menú">×</button>
             </div>
-            <div class="logo-sub">VIRTUAL</div>
-          </div>
-        </div>
+            <p class="menu-intro">¿Qué quieres hacer?</p>
+            <nav>
+              <button type="button" onclick="this.closest('details').removeAttribute('open'); showScreen('screen-home')"><small>01</small><span>Ir al inicio</span></button>
+              <button type="button" onclick="this.closest('details').removeAttribute('open'); document.getElementById('games').scrollIntoView({behavior:'smooth'})"><small>02</small><span>Elegir un juego</span></button>
+              <a href="https://www.theretos.co/" target="_blank" rel="noopener"><small>03</small><span>Abrir Marketplace</span></a>
+              <button type="button" onclick="this.closest('details').removeAttribute('open'); showScreen('screen-tickets')"><small>04</small><span>Ver mis eTickets</span></button>
+            </nav>
+            <div class="menu-help"><strong>Cómo jugar</strong><p>Practica gratis o juega en modo reto para ganar eTickets.</p></div>
+          </aside>
+        </details>
 
-        <div class="etickets-badge" onclick="showScreen('screen-tickets')">
-          <span class="ticket-icon">🎟️</span>
-          <div>
-            <div class="label">eTickets</div>
-            <div class="count" id="home-ticket-count">15</div>
-          </div>
-        </div>
-      </div>
+        <a class="brand" href="#" onclick="event.preventDefault(); showScreen('screen-home')" aria-label="THERETOS Arcade">
+          <img class="brand-logo" src="logo-theretos.png" alt="THERETOS" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <span class="wordmark" style="display:none"><strong>THERETOS</strong><small>ARCADE</small></span>
+        </a>
 
-      <div class="hero">
-        <span class="scatter dot dot-purple" style="top:12px;left:46%;"></span>
-        <span class="scatter dot dot-gold" style="top:18px;right:24px;width:10px;height:10px;"></span>
-        <span class="scatter dot dot-green" style="top:50px;right:90px;"></span>
-        <span class="scatter dot dot-red" style="bottom:30px;right:80px;"></span>
-        <span class="scatter" style="top:8px;left:43%;color:#a855f7;font-size:12px;">◆</span>
-        <span class="scatter" style="bottom:12px;left:42%;color:#f59e0b;font-size:10px;">◆</span>
+        <button class="wallet-chip" type="button" onclick="showScreen('screen-tickets')" aria-label="Ver mis eTickets">
+          <span class="wallet-symbol">T</span>
+          <span><small>eTickets</small><strong id="home-ticket-count">15</strong></span>
+        </button>
+      </header>
 
-        <div class="hero-left">
-          <h1>GANA PREMIOS<br><span>JUGANDO</span></h1>
-          <p>Acumula eTickets jugando<br>y canjéalos por premios increíbles.</p>
-        </div>
+      <main>
+        <span id="tap-best-home" class="sr-only">0</span>
+        <span id="tap-tickets-home" class="sr-only">15</span>
 
-        <div class="hero-robot">
-          <svg class="robot-svg" viewBox="0 0 130 140" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="65" cy="8" r="6" fill="#f59e0b" stroke="#d97706" stroke-width="1.5"/>
-            <line x1="65" y1="14" x2="65" y2="26" stroke="#d1d5db" stroke-width="3" stroke-linecap="round"/>
-            <rect x="30" y="26" width="70" height="60" rx="18" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5"/>
-            <rect x="36" y="32" width="58" height="48" rx="14" fill="#0f172a"/>
-            <rect x="44" y="44" width="16" height="10" rx="3" fill="#22d3ee"/>
-            <rect x="70" y="44" width="16" height="10" rx="3" fill="#22d3ee"/>
-            <rect x="48" y="61" width="6" height="4" rx="2" fill="#22d3ee"/>
-            <rect x="56" y="65" width="6" height="4" rx="2" fill="#22d3ee"/>
-            <rect x="64" y="65" width="6" height="4" rx="2" fill="#22d3ee"/>
-            <rect x="72" y="61" width="6" height="4" rx="2" fill="#22d3ee"/>
-            <circle cx="30" cy="56" r="7" fill="#c4b5fd" stroke="#a78bfa" stroke-width="1.5"/>
-            <circle cx="100" cy="56" r="7" fill="#c4b5fd" stroke="#a78bfa" stroke-width="1.5"/>
-            <rect x="56" y="86" width="18" height="8" rx="4" fill="#cbd5e1"/>
-            <rect x="24" y="94" width="82" height="36" rx="16" fill="#ddd6fe" stroke="#c4b5fd" stroke-width="1.5"/>
-            <circle cx="65" cy="112" r="10" fill="#a78bfa" opacity="0.4"/>
-            <rect x="6" y="96" width="20" height="28" rx="10" fill="#c4b5fd" stroke="#a78bfa" stroke-width="1.5"/>
-            <rect x="104" y="96" width="20" height="28" rx="10" fill="#c4b5fd" stroke="#a78bfa" stroke-width="1.5"/>
-            <rect x="108" y="116" width="28" height="16" rx="4" fill="#f59e0b" transform="rotate(-20 122 124)"/>
-            <text x="122" y="128" font-size="9" fill="#fff" text-anchor="middle" transform="rotate(-20 122 124)">★</text>
-          </svg>
-        </div>
-      </div>
-
-      <div class="divider" style="margin-top:18px;"></div>
-
-      <div class="section-title">🎮 JUEGO DEL DÍA</div>
-
-      <div class="game-day" style="cursor:pointer;" onclick="showScreen('screen-tap')">
-        <div class="game-day-thumb">
-          <div class="tap-text">TAP</div>
-          <div class="frenetic-text">FRENÉTICO</div>
-          <div class="tap-coin"><span style="font-size:24px">👆</span></div>
-        </div>
-
-        <div class="game-day-info">
-          <p>Toca lo más rápido que puedas<br>en 15 segundos y gana eTickets.</p>
-          <div class="game-stats">
-            <div class="stat-box">
-              <div class="stat-label">MEJOR PUNTAJE</div>
-              <div class="stat-val" id="tap-best-home">🏆 0</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">TUS eTICKETS</div>
-              <div class="stat-val green" id="tap-tickets-home">🎟️ 15</div>
+        <section class="hero-section">
+          <div class="hero-copy">
+            <span class="eyebrow">JUEGOS DE HABILIDAD</span>
+            <h1>ELIGE UN JUEGO.<br><em>PRACTICA</em> O<br><strong>JUEGA POR eTICKETS.</strong></h1>
+            <p>Compite contra tu propio récord en partidas rápidas de velocidad, precisión y coordinación.</p>
+            <div class="hero-actions">
+              <a class="btn btn--gold" href="#games">VER JUEGOS</a>
+              <a class="btn btn--outline" href="https://www.theretos.co/" target="_blank" rel="noopener">IR AL MARKETPLACE</a>
             </div>
           </div>
-          <button class="btn-play-small" onclick="event.stopPropagation(); showScreen('screen-tap')">JUGAR &nbsp;›</button>
-        </div>
-      </div>
 
-      <div class="section-title-left">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="#a855f7"><path d="M6 4l14 8-14 8V4z"/></svg>
-        MÁS JUEGOS
-      </div>
-
-      <div class="games-grid">
-        <div class="game-card" onclick="showScreen('screen-balloons')">
-          <div class="game-card-thumb balloons">
-            <div style="font-size:28px;margin-bottom:4px;">🎈🎈<br>🎈🎈</div>
-            <div>REVIENTA GLOBOS</div>
+          <div class="how-it-works" aria-label="Cómo funciona">
+            <div><span>1</span><strong>Elige</strong><small>uno de los juegos</small></div>
+            <div><span>2</span><strong>Decide</strong><small>practicar o jugar reto</small></div>
+            <div><span>3</span><strong>Supera</strong><small>tu marca y gana</small></div>
           </div>
-          <div class="game-card-desc">Revienta los globos antes de que escapen.</div>
-          <button class="btn-game blue">JUGAR</button>
-        </div>
+        </section>
 
-        <div class="game-card" onclick="showScreen('screen-moles')">
-          <div class="game-card-thumb moles">
-            <div style="font-size:30px;margin-bottom:4px;">🐹🐰<br>🐻🐸</div>
-            <div>GOLPEA TOPOS</div>
+        <section class="featured-section">
+          <div class="section-heading">
+            <div><span>RECOMENDADO PARA EMPEZAR</span><h2>Tap Frenético</h2></div>
+            <span class="active-badge">ACTIVO</span>
           </div>
-          <div class="game-card-desc">Golpea los topos antes de que desaparezcan.</div>
-          <button class="btn-game green">JUGAR</button>
-        </div>
+          <article class="featured-game">
+            <div class="game-preview preview-tap" aria-hidden="true">
+              <div class="pulse pulse--one"></div><div class="pulse pulse--two"></div><div class="tap-core">TAP</div>
+              <span>15 SEGUNDOS</span>
+            </div>
+            <div class="featured-copy">
+              <h3>¿Qué tienes que hacer?</h3>
+              <p>Toca el botón central tantas veces como puedas antes de que el contador llegue a cero.</p>
+              <div class="featured-details"><span><small>Duración</small><strong>15 s</strong></span><span><small>Habilidad</small><strong>Velocidad</strong></span><span><small>Premio</small><strong>eTickets</strong></span></div>
+              <div class="dual-actions">
+                <button class="btn btn--challenge" type="button" onclick="launchGame('screen-tap','challenge')">JUGAR RETO</button>
+                <button class="btn btn--practice" type="button" onclick="launchGame('screen-tap','practice')">PRACTICAR GRATIS</button>
+              </div>
+            </div>
+          </article>
+        </section>
 
-        <div class="game-card" onclick="showScreen('screen-coins')">
-          <div class="game-card-thumb coins">
-          <div style="font-size:30px;margin-bottom:4px;">💰💰<br>🧺💰</div>
-          <div>ATRAPA MONEDAS</div>
+        <section class="games-section" id="games">
+          <div class="section-heading">
+            <div><span>ARCADE THERETOS</span><h2>Elige tu juego</h2></div>
+            <small>4 disponibles</small>
           </div>
-          <div class="game-card-desc">Atrapa todas las monedas y suma puntos.</div>
-          <button class="btn-game blue">JUGAR</button>
-        </div>
-      </div>
 
-      <div class="ticket-progress">
-        <div class="ticket-big">🎟️</div>
-        <div class="tp-center">
-          <div class="tp-label">TUS eTICKETS</div>
-          <div class="tp-count" id="progress-ticket-count">15</div>
-          <div class="progress-bar"><div class="progress-fill" id="progress-fill-bar" style="width:15%"></div></div>
-        </div>
-        <div class="tp-right"><span class="gift-icon">🎁</span>¡Juega más para seguir ganando!</div>
-      </div>
+          <div class="games-list">
+            <article class="game-card">
+              <div class="game-preview preview-tap"><div class="pulse pulse--one"></div><div class="pulse pulse--two"></div><div class="tap-core">TAP</div></div>
+              <div class="game-card__content"><span class="game-tag">VELOCIDAD</span><h3>Tap Frenético</h3><p>Toca tan rápido como puedas durante 15 segundos.</p><div class="dual-actions"><button class="btn btn--challenge" type="button" onclick="launchGame('screen-tap','challenge')">JUGAR RETO</button><button class="btn btn--practice" type="button" onclick="launchGame('screen-tap','practice')">PRACTICAR</button></div></div>
+            </article>
 
-      <div class="prizes-title">⭐ PREMIOS DESTACADOS ⭐</div>
+            <article class="game-card">
+              <div class="game-preview preview-burst"><div class="target-dot dot-a"></div><div class="target-dot dot-b"></div><div class="target-dot dot-c"></div><div class="crosshair"></div></div>
+              <div class="game-card__content"><span class="game-tag">PRECISIÓN</span><h3>Burst Mode</h3><p>Revienta los objetivos antes de que salgan de la zona.</p><div class="dual-actions"><button class="btn btn--challenge" type="button" onclick="launchGame('screen-balloons','challenge')">JUGAR RETO</button><button class="btn btn--practice" type="button" onclick="launchGame('screen-balloons','practice')">PRACTICAR</button></div></div>
+            </article>
 
-      <div class="prizes-grid">
-        <div class="prize-card green-card">
-          <div class="prize-emoji">🍔🍟</div>
-          <div class="prize-name">COMBO FAST FOOD</div>
-          <div class="prize-cost">🎟️ 20</div>
-        </div>
+            <article class="game-card">
+              <div class="game-preview preview-target"><div class="target-ring r1"></div><div class="target-ring r2"></div><div class="target-ring r3"></div><div class="target-center"></div></div>
+              <div class="game-card__content"><span class="game-tag">REACCIÓN</span><h3>Target Rush</h3><p>Golpea cada objetivo apenas aparezca en pantalla.</p><div class="dual-actions"><button class="btn btn--challenge" type="button" onclick="launchGame('screen-moles','challenge')">JUGAR RETO</button><button class="btn btn--practice" type="button" onclick="launchGame('screen-moles','practice')">PRACTICAR</button></div></div>
+            </article>
 
-        <div class="prize-card blue-card">
-          <div class="prize-emoji">🎧</div>
-          <div class="prize-name">AUDÍFONOS BLUETOOTH</div>
-          <div class="prize-cost">🎟️ 50</div>
-        </div>
+            <article class="game-card">
+              <div class="game-preview preview-coins"><div class="coin c1">T</div><div class="coin c2">T</div><div class="coin c3">T</div><div class="basket-shape"></div></div>
+              <div class="game-card__content"><span class="game-tag">COORDINACIÓN</span><h3>Gold Catch</h3><p>Mueve la cesta y atrapa todas las monedas posibles.</p><div class="dual-actions"><button class="btn btn--challenge" type="button" onclick="launchGame('screen-coins','challenge')">JUGAR RETO</button><button class="btn btn--practice" type="button" onclick="launchGame('screen-coins','practice')">PRACTICAR</button></div></div>
+            </article>
+          </div>
+        </section>
 
-        <div class="prize-card purple-card">
-          <div class="prize-emoji">🎮</div>
-          <div class="prize-name">GIFT CARD GAMER</div>
-          <div class="prize-cost">🎟️ 80</div>
-        </div>
-      </div>
+        <section class="wallet-section">
+          <div class="wallet-card">
+            <div class="wallet-card__main"><span>MI SALDO</span><strong id="progress-ticket-count">15</strong><small>eTickets</small></div>
+            <div class="wallet-card__progress"><div class="progress-track"><span id="progress-fill-bar" style="width:15%"></span></div><small>Sigue jugando para aumentar tu saldo.</small></div>
+            <button class="btn btn--purple" type="button" onclick="showScreen('screen-tickets')">VER MOVIMIENTOS</button>
+          </div>
+        </section>
 
-      <div class="see-all" onclick="showScreen('screen-prizes')">VER TODOS LOS PREMIOS &nbsp;→</div>
+        <section class="marketplace-section">
+          <div><span>RECOMPENSAS THERETOS</span><h2>Usa tus eTickets en el Marketplace oficial.</h2><p>Consulta los premios, condiciones de canje y disponibilidad directamente en THERETOS.co.</p></div>
+          <a class="btn btn--gold" href="https://www.theretos.co/" target="_blank" rel="noopener">ABRIR MARKETPLACE</a>
+        </section>
+      </main>
+
+      <footer class="site-footer"><strong>THERETOS ARCADE</strong><p>Juegos de habilidades y destrezas. Sin apuestas de dinero real.</p><span>© 2026 THERETOS S.A.S.</span></footer>
     </div>
 
     <div id="screen-prizes" class="screen">
-      <div class="game-header">
-        <button class="back-btn" onclick="goHome()">‹</button>
-        <div class="game-header-title">🎁 PREMIOS</div>
-        <div class="game-header-tickets" id="prizes-header">🎟️ 15</div>
-      </div>
-
-      <div style="padding:20px 16px; color:white;">
-        <div class="prizes-grid" style="margin:0;">
-          <div class="prize-card green-card">
-            <div class="prize-emoji">🍔🍟</div>
-            <div class="prize-name">COMBO FAST FOOD</div>
-            <div class="prize-cost">🎟️ 20</div>
-          </div>
-          <div class="prize-card blue-card">
-            <div class="prize-emoji">🎧</div>
-            <div class="prize-name">AUDÍFONOS BLUETOOTH</div>
-            <div class="prize-cost">🎟️ 50</div>
-          </div>
-          <div class="prize-card purple-card">
-            <div class="prize-emoji">🎮</div>
-            <div class="prize-name">GIFT CARD GAMER</div>
-            <div class="prize-cost">🎟️ 80</div>
-          </div>
-        </div>
-
-        <p style="margin-top:16px;color:#c4b5fd;font-size:13px;line-height:1.4;text-align:center;">
-          Versión de prueba: los premios son de referencia. El objetivo es medir si los usuarios juegan, repiten y acumulan eTickets.
-        </p>
-      </div>
-    </div>
-
-    <div id="screen-tap" class="screen">
       <div class="game-screen">
-        <div class="game-header">
-          <button class="back-btn" onclick="goHome()">‹</button>
-          <div class="game-header-title">⚡ TAP FRENÉTICO</div>
-          <div class="game-header-tickets" id="tap-header-tickets">🎟️ 15</div>
-        </div>
-
-        <div class="game-arena">
-          <div class="game-info-bar">
-            <div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="tap-time">15</div></div>
-            <div class="info-item"><div class="info-label">TAPS</div><div class="info-val gold" id="tap-count-display">0</div></div>
-            <div class="info-item"><div class="info-label">RÉCORD</div><div class="info-val" id="tap-record">0</div></div>
-          </div>
-
-          <div id="tap-arena">
-            <div id="tap-timer-ring">
-              <svg viewBox="0 0 120 120">
-                <circle id="tap-timer-bg" cx="60" cy="60" r="54"></circle>
-                <circle id="tap-timer-circle" cx="60" cy="60" r="54"></circle>
-              </svg>
-              <div class="tap-timer-text">
-                <span class="t-num" id="tap-timer-num">15</span>
-                <span class="t-label">SEG</span>
-              </div>
-            </div>
-
-            <button id="tap-btn" class="inactive" ontouchstart="doTap(event)" onclick="doTap(event)">👆</button>
-            <div id="tap-score-display">¡Toca para empezar!</div>
-          </div>
-
-          <button class="start-btn" id="tap-start-btn" onclick="startTap()">🚀 ¡INICIAR JUEGO!</button>
-        </div>
+        <header class="game-header"><button class="back-btn" type="button" onclick="goHome()">‹</button><div><small>THERETOS</small><h1>MARKETPLACE</h1></div><div class="game-header-tickets" id="prizes-header">15</div></header>
+        <main class="inner-page marketplace-redirect"><span>MARKETPLACE OFICIAL</span><h2>Los premios están disponibles en THERETOS.co</h2><p>Abre el Marketplace oficial para consultar premios, condiciones y disponibilidad actualizada.</p><a class="btn btn--gold" href="https://www.theretos.co/" target="_blank" rel="noopener">ABRIR MARKETPLACE</a><button class="btn btn--practice" type="button" onclick="goHome()">VOLVER A LOS JUEGOS</button></main>
       </div>
     </div>
 
-    <div id="screen-balloons" class="screen">
-      <div class="game-screen">
-        <div class="game-header">
-          <button class="back-btn" onclick="goHome()">‹</button>
-          <div class="game-header-title">🎈 REVIENTA GLOBOS</div>
-          <div class="game-header-tickets" id="balloons-header-tickets">🎟️ 15</div>
-        </div>
+    <div id="screen-tap" class="screen"><div class="game-screen"><header class="game-header"><button class="back-btn" type="button" onclick="goHome()">‹</button><div><small>VELOCIDAD</small><h1>TAP FRENÉTICO</h1></div><div class="game-header-tickets" id="tap-header-tickets">15</div></header><main class="game-arena"><div class="mode-banner" id="tap-mode-banner">MODO RETO · GANAS eTICKETS</div><div class="game-info-bar"><div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="tap-time">15</div></div><div class="info-item"><div class="info-label">TAPS</div><div class="info-val gold" id="tap-count-display">0</div></div><div class="info-item"><div class="info-label">RÉCORD</div><div class="info-val" id="tap-record">0</div></div></div><div id="tap-arena"><div id="tap-timer-ring"><svg viewBox="0 0 120 120"><circle id="tap-timer-bg" cx="60" cy="60" r="54"></circle><circle id="tap-timer-circle" cx="60" cy="60" r="54"></circle></svg><div class="tap-timer-text"><span class="t-num" id="tap-timer-num">15</span><span class="t-label">SEG</span></div></div><button id="tap-btn" class="inactive" ontouchstart="doTap(event)" onclick="doTap(event)">TAP</button><div id="tap-score-display">Toca para comenzar</div></div><button class="start-btn" id="tap-start-btn" type="button" onclick="startTap()">INICIAR JUEGO</button></main></div></div>
 
-        <div class="game-arena">
-          <div class="game-info-bar">
-            <div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="bal-time">30</div></div>
-            <div class="info-item"><div class="info-label">REVENTADOS</div><div class="info-val gold" id="bal-popped">0</div></div>
-            <div class="info-item"><div class="info-label">ESCAPADOS</div><div class="info-val" id="bal-escaped" style="color:#ef4444">0</div></div>
-          </div>
+    <div id="screen-balloons" class="screen"><div class="game-screen"><header class="game-header"><button class="back-btn" type="button" onclick="goHome()">‹</button><div><small>PRECISIÓN</small><h1>BURST MODE</h1></div><div class="game-header-tickets" id="balloons-header-tickets">15</div></header><main class="game-arena"><div class="mode-banner" id="balloons-mode-banner">MODO RETO · GANAS eTICKETS</div><div class="game-info-bar"><div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="bal-time">30</div></div><div class="info-item"><div class="info-label">ACIERTOS</div><div class="info-val gold" id="bal-popped">0</div></div><div class="info-item"><div class="info-label">ESCAPADOS</div><div class="info-val danger" id="bal-escaped">0</div></div></div><div id="balloons-arena"></div><button class="start-btn" id="bal-start-btn" type="button" onclick="startBalloons()">INICIAR JUEGO</button></main></div></div>
 
-          <div id="balloons-arena" style="width:100%;flex:1;min-height:340px;"></div>
-          <button class="start-btn" id="bal-start-btn" onclick="startBalloons()">🚀 ¡INICIAR JUEGO!</button>
-        </div>
-      </div>
-    </div>
+    <div id="screen-moles" class="screen"><div class="game-screen"><header class="game-header"><button class="back-btn" type="button" onclick="goHome()">‹</button><div><small>REACCIÓN</small><h1>TARGET RUSH</h1></div><div class="game-header-tickets" id="moles-header-tickets">15</div></header><main class="game-arena"><div class="mode-banner" id="moles-mode-banner">MODO RETO · GANAS eTICKETS</div><div class="game-info-bar"><div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="mol-time">30</div></div><div class="info-item"><div class="info-label">ACIERTOS</div><div class="info-val gold" id="mol-hits">0</div></div><div class="info-item"><div class="info-label">FALLADOS</div><div class="info-val danger" id="mol-miss">0</div></div></div><div id="moles-arena"><div class="moles-grid" id="moles-grid"></div></div><button class="start-btn" id="mol-start-btn" type="button" onclick="startMoles()">INICIAR JUEGO</button></main></div></div>
 
-    <div id="screen-moles" class="screen">
-      <div class="game-screen">
-        <div class="game-header">
-          <button class="back-btn" onclick="goHome()">‹</button>
-          <div class="game-header-title">🐹 GOLPEA TOPOS</div>
-          <div class="game-header-tickets" id="moles-header-tickets">🎟️ 15</div>
-        </div>
+    <div id="screen-coins" class="screen"><div class="game-screen"><header class="game-header"><button class="back-btn" type="button" onclick="goHome()">‹</button><div><small>COORDINACIÓN</small><h1>GOLD CATCH</h1></div><div class="game-header-tickets" id="coins-header-tickets">15</div></header><main class="game-arena"><div class="mode-banner" id="coins-mode-banner">MODO RETO · GANAS eTICKETS</div><div class="game-info-bar"><div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="coin-time">30</div></div><div class="info-item"><div class="info-label">MONEDAS</div><div class="info-val gold" id="coin-score">0</div></div><div class="info-item"><div class="info-label">RÉCORD</div><div class="info-val" id="coin-record">0</div></div></div><div id="coins-game-wrap"><div id="coins-canvas-wrap"><canvas id="coins-canvas"></canvas></div><div id="basket-ctrl"><button class="basket-btn" type="button" ontouchstart="moveBasket(-1)" onmousedown="moveBasket(-1)">◀</button><button class="basket-btn" type="button" ontouchstart="moveBasket(1)" onmousedown="moveBasket(1)">▶</button></div></div><button class="start-btn" id="coin-start-btn" type="button" onclick="startCoins()">INICIAR JUEGO</button></main></div></div>
 
-        <div class="game-arena">
-          <div class="game-info-bar">
-            <div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="mol-time">30</div></div>
-            <div class="info-item"><div class="info-label">GOLPES</div><div class="info-val gold" id="mol-hits">0</div></div>
-            <div class="info-item"><div class="info-label">FALLADOS</div><div class="info-val" id="mol-miss" style="color:#ef4444">0</div></div>
-          </div>
+    <div id="screen-tickets" class="screen"><div class="game-screen"><header class="game-header"><button class="back-btn" type="button" onclick="goHome()">‹</button><div><small>BILLETERA</small><h1>MIS eTICKETS</h1></div><div class="game-header-tickets" id="tix-header">15</div></header><main class="inner-page wallet-page"><section class="balance-panel"><span>SALDO DISPONIBLE</span><strong id="tix-big-count">15</strong><small>eTickets</small></section><div class="history-heading"><span>HISTORIAL</span><small>Movimientos recientes</small></div><div id="tix-history" class="history-list"><div class="history-item"><div><strong>Saldo inicial</strong><small>Bienvenido a THERETOS</small></div><span>+15</span></div></div></main></div></div>
 
-          <div id="moles-arena">
-            <div class="moles-grid" id="moles-grid"></div>
-          </div>
-
-          <button class="start-btn" id="mol-start-btn" onclick="startMoles()">🚀 ¡INICIAR JUEGO!</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="screen-coins" class="screen">
-      <div class="game-screen">
-        <div class="game-header">
-          <button class="back-btn" onclick="goHome()">‹</button>
-          <div class="game-header-title">💰 ATRAPA MONEDAS</div>
-          <div class="game-header-tickets" id="coins-header-tickets">🎟️ 15</div>
-        </div>
-
-        <div class="game-arena">
-          <div class="game-info-bar">
-            <div class="info-item"><div class="info-label">TIEMPO</div><div class="info-val" id="coin-time">30</div></div>
-            <div class="info-item"><div class="info-label">MONEDAS</div><div class="info-val gold" id="coin-score">0</div></div>
-            <div class="info-item"><div class="info-label">RÉCORD</div><div class="info-val" id="coin-record">0</div></div>
-          </div>
-
-          <div id="coins-game-wrap">
-            <div id="coins-canvas-wrap">
-              <canvas id="coins-canvas"></canvas>
-            </div>
-
-            <div id="basket-ctrl">
-              <button class="basket-btn" ontouchstart="moveBasket(-1)" onmousedown="moveBasket(-1)">◀</button>
-              <button class="basket-btn" ontouchstart="moveBasket(1)" onmousedown="moveBasket(1)">▶</button>
-            </div>
-          </div>
-
-          <button class="start-btn" id="coin-start-btn" onclick="startCoins()">🚀 ¡INICIAR JUEGO!</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="screen-tickets" class="screen">
-      <div class="game-header">
-        <button class="back-btn" onclick="goHome()">‹</button>
-        <div class="game-header-title">🎟️ MIS eTICKETS</div>
-        <div class="game-header-tickets" id="tix-header">🎟️ 15</div>
-      </div>
-
-      <div style="padding:20px 16px;">
-        <div style="background:linear-gradient(135deg,#3a1a7a,#6d28d9);border-radius:20px;padding:28px;text-align:center;margin-bottom:20px;">
-          <div style="font-size:56px;margin-bottom:8px;">🎟️</div>
-          <div style="color:#c4b5fd;font-size:14px;font-weight:700;">TUS eTICKETS ACUMULADOS</div>
-          <div style="color:white;font-size:64px;font-weight:900;font-family:'Fredoka One',cursive;" id="tix-big-count">15</div>
-          <div style="color:#a78bfa;font-size:12px;margin-top:4px;">¡Juega más para ganar más!</div>
-        </div>
-
-        <div style="color:white;font-size:14px;font-weight:800;margin-bottom:12px;">HISTORIAL DE JUEGOS</div>
-
-        <div id="tix-history" style="display:flex;flex-direction:column;gap:8px;">
-          <div style="background:#2d1b69;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:24px;">🎮</span>
-              <div>
-                <div style="color:white;font-weight:800;font-size:14px;">Saldo inicial</div>
-                <div style="color:#a78bfa;font-size:11px;">Bienvenido a Theretos</div>
-              </div>
-            </div>
-            <div style="color:#fcd34d;font-weight:900;font-size:18px;">+15</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="result-overlay" id="result-overlay">
-      <div class="result-card">
-        <div class="result-emoji" id="res-emoji">🎉</div>
-        <h2 id="res-title">¡INCREÍBLE!</h2>
-        <div class="result-score" id="res-score">Puntaje: 0</div>
-
-        <div class="tickets-earned">
-          <span>🎟️ Ganaste</span>
-          <span class="big" id="res-tickets">+0</span>
-          <span>eTickets</span>
-        </div>
-
-        <button class="result-btn primary" id="res-play-again">🔄 JUGAR DE NUEVO</button>
-        <button class="result-btn secondary" onclick="goHome()">🏠 Volver al Inicio</button>
-      </div>
-    </div>
-
+    <div class="result-overlay" id="result-overlay"><div class="result-card"><div class="result-emoji" id="res-emoji">★</div><span class="result-kicker">RESULTADO FINAL</span><h2 id="res-title">¡INCREÍBLE!</h2><div class="result-score" id="res-score">Puntaje: 0</div><div class="tickets-earned"><span>Ganaste</span><span class="big" id="res-tickets">+0</span><span>eTickets</span></div><button class="result-btn primary" id="res-play-again" type="button">JUGAR DE NUEVO</button><button class="result-btn secondary" type="button" onclick="goHome()">VOLVER AL INICIO</button></div></div>
   </div>
 
   <script src="app.js"></script>
+  <script>
+    let theretosPlayMode = 'challenge';
+    function launchGame(screenId, mode) {
+      theretosPlayMode = mode;
+      showScreen(screenId);
+      const banner = document.getElementById(screenId.replace('screen-', '') + '-mode-banner');
+      if (banner) {
+        banner.textContent = mode === 'practice' ? 'MODO PRÁCTICA · NO SUMA eTICKETS' : 'MODO RETO · GANAS eTICKETS';
+        banner.classList.toggle('practice', mode === 'practice');
+      }
+    }
+    const theretosOriginalAddTickets = addTickets;
+    addTickets = function(n, gameName, score) {
+      if (theretosPlayMode === 'practice') return;
+      theretosOriginalAddTickets(n, gameName, score);
+    };
+    const theretosOriginalShowResult = showResult;
+    showResult = function(opts) {
+      if (theretosPlayMode === 'practice') {
+        opts = { ...opts, tickets: 0, title: opts.title + ' · PRÁCTICA' };
+      }
+      theretosOriginalShowResult(opts);
+    };
+  </script>
 </body>
 </html>
