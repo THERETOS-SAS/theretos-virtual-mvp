@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "../components/AuthProvider";
+import { SupabaseProfileSync } from "../components/SupabaseProfileSync";
 
 export const metadata: Metadata = {
   title: "THERETOS | Juega. Compite. Gana.",
@@ -15,7 +16,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body><AuthProvider>{children}</AuthProvider></body>
+      <body>
+        <AuthProvider>
+          <SupabaseProfileSync />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
