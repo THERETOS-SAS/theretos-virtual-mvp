@@ -6,8 +6,8 @@ import { mockTournaments, type MockTournament } from "../data/mockTournaments";
 import { mockHistory, type HistoryEntry } from "../data/mockHistory";
 import { usePathname, useRouter } from "next/navigation";
 import type { GameResult } from "../types/games";
+import { createClient } from "@/lib/supabase/client";
 
-const SESSION_KEY = "theretos_demo_session";
 const PLAYER_KEY = "theretos_player_v1";
 const TOURNAMENTS_KEY = "theretos_tournaments_v1";
 const HISTORY_KEY = "theretos_history_v1";
@@ -30,20 +30,123 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const tournamentsRef = useRef(tournaments);
   const historyRef = useRef(history);
   const participatingRef = useRef(false);
-  const activate = useCallback(() => { localStorage.setItem(SESSION_KEY, "active"); setAuthenticated(true); }, []);
-  const logout = useCallback(() => { localStorage.removeItem(SESSION_KEY); localStorage.removeItem("theretos-auth-session"); setAuthenticated(false); }, []);
+  const activate = useCallback(() => {
+  setAuthenticated(true);
+}, []);
+
+const logout = useCallback(async () => {
+  const supabase = createClient();
+
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error("Error cerrando sesión de Supabase", error);
+  }
+
+  // Limpieza de claves antiguas del MVP.
+  localStorage.removeItem("theretos_demo_session");
+  localStorage.removeItem("theretos-auth-session");
+
+  setAuthenticated(false);
+}, []);
   const updateProfile = useCallback((profile: ProfileUpdate) => { const updated = { ...playerRef.current, ...profile }; playerRef.current = updated; setPlayer(updated); localStorage.setItem(PLAYER_KEY, JSON.stringify(updated)); }, []);
   const register = useCallback((profile: ProfileUpdate = {}) => { let updated = { ...playerRef.current, ...profile }; if (!localStorage.getItem(WELCOME_BONUS_KEY)) { updated = { ...updated, etickets: updated.etickets + updated.welcomeBonusEtickets }; localStorage.setItem(WELCOME_BONUS_KEY, "granted"); } playerRef.current = updated; setPlayer(updated); localStorage.setItem(PLAYER_KEY, JSON.stringify(updated)); activate(); }, [activate]);
-  useEffect(() => { const timer = window.setTimeout(() => {
-    const read = <T,>(key: string, fallback: T): T => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
-    const savedPlayer = { ...mockPlayer, ...read<Partial<DemoPlayer>>(PLAYER_KEY, {}) } as DemoPlayer;
-    const storedTournaments = read<MockTournament[]>(TOURNAMENTS_KEY, mockTournaments);
-    const savedTournaments = mockTournaments.map((canonical) => { const stored = storedTournaments.find((item) => item.id === canonical.id); return stored ? { ...stored, name: canonical.name, slug: canonical.slug, gameSlug: canonical.gameSlug, gameName: canonical.gameName, entryCost: canonical.entryCost, maxPlayers: canonical.maxPlayers } : canonical; });
-    const savedHistory = read<HistoryEntry[]>(HISTORY_KEY, mockHistory).map((item) => item.status === ("participating" as HistoryEntry["status"]) ? { ...item, status: "pending" as const } : item);
-    playerRef.current = savedPlayer; tournamentsRef.current = savedTournaments; historyRef.current = savedHistory;
-    setPlayer(savedPlayer); setTournaments(savedTournaments); setHistory(savedHistory);
-    setAuthenticated(localStorage.getItem(SESSION_KEY) === "active"); setReady(true);
-  }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => {
+  let active = true;
+
+  const supabase = createClient();
+
+  const read = <T,>(key: string, fallback: T): T => {
+    try {
+      const value = localStorage.getItem(key);
+      return value ? (JSON.parse(value) as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const savedPlayer = {
+    ...mockPlayer,
+    ...read<Partial<DemoPlayer>>(PLAYER_KEY, {}),
+  } as DemoPlayer;
+
+  const storedTournaments = read<MockTournament[]>(
+    TOURNAMENTS_KEY,
+    mockTournaments
+  );
+
+  const savedTournaments = mockTournaments.map((canonical) => {
+    const stored = storedTournaments.find(
+      (item) => item.id === canonical.id
+    );
+
+    return stored
+      ? {
+          ...stored,
+          name: canonical.name,
+          slug: canonical.slug,
+          gameSlug: canonical.gameSlug,
+          gameName: canonical.gameName,
+          entryCost: canonical.entryCost,
+          maxPlayers: canonical.maxPlayers,
+        }
+      : canonical;
+  });
+
+  const savedHistory = read<HistoryEntry[]>(
+    HISTORY_KEY,
+    mockHistory
+  ).map((item) =>
+    item.status === ("participating" as HistoryEntry["status"])
+      ? { ...item, status: "pending" as const }
+      : item
+  );
+
+  playerRef.current = savedPlayer;
+tournamentsRef.current = savedTournaments;
+historyRef.current = savedHistory;
+
+const restoreTimer = window.setTimeout(() => {
+  if (!active) return;
+
+  setPlayer(savedPlayer);
+  setTournaments(savedTournaments);
+  setHistory(savedHistory);
+}, 0);
+
+async function initializeSession() {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (!active) return;
+
+  if (error) {
+    console.error("No pudimos validar la sesión de Supabase", error);
+  }
+
+  setAuthenticated(Boolean(user));
+  setReady(true);
+}
+
+void initializeSession();
+
+const {
+  data: { subscription },
+} = supabase.auth.onAuthStateChange((_event, session) => {
+  if (!active) return;
+
+  setAuthenticated(Boolean(session?.user));
+});
+
+return () => {
+  active = false;
+  window.clearTimeout(restoreTimer);
+  subscription.unsubscribe();
+};
+}, []);
+
   useEffect(() => { if (!isReady) return; document.body.dataset.auth = isAuthenticated ? "user" : "guest"; if (!isAuthenticated && ["/profile", "/my-prizes", "/history"].includes(pathname)) router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`); }, [isAuthenticated, isReady, pathname, router]);
   useEffect(() => { const handleLogout = (event: MouseEvent) => { const link = (event.target as Element).closest<HTMLAnchorElement>('.profile-security-grid a[href="/"]'); if (!link) return; event.preventDefault(); logout(); router.push("/"); }; document.addEventListener("click", handleLogout); return () => document.removeEventListener("click", handleLogout); }, [logout, router]);
   const participate = useCallback((tournamentId: string): ParticipationResult => {

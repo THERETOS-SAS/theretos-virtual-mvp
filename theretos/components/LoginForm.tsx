@@ -40,9 +40,6 @@ export function LoginForm() {
         return;
       }
 
-      // Puente temporal mientras terminamos de migrar AuthProvider a Supabase.
-      localStorage.setItem("theretos_demo_session", "active");
-
       const params = new URLSearchParams(window.location.search);
       const returnUrl = safeReturnUrl(
         params.get("returnTo") ?? params.get("returnUrl")
