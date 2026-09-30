@@ -3,12 +3,7 @@
 import { useState } from "react";
 import { AccountFormField } from "./AccountFormField";
 import { createClient } from "@/lib/supabase/client";
-
-function safeReturnUrl(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//")
-    ? value
-    : "/profile";
-}
+import { safeInternalPath } from "@/lib/auth-redirect";
 
 export function LoginForm() {
   const [loading, setLoading] = useState(false);
@@ -41,7 +36,7 @@ export function LoginForm() {
       }
 
       const params = new URLSearchParams(window.location.search);
-      const returnUrl = safeReturnUrl(
+      const returnUrl = safeInternalPath(
         params.get("returnTo") ?? params.get("returnUrl")
       );
 

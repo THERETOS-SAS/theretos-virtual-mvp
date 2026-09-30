@@ -3333,6 +3333,12 @@ body:not([data-auth="user"]) .history-content { visibility: hidden; }
 .account-success > strong svg { width: 23px; }
 .account-success p { color: var(--muted); font-size: .72rem; }
 .account-success > a { min-height: 45px; margin-top: 8px; padding: 0 18px; display: flex; align-items: center; border-radius: 9px; color: #211500; background: var(--gold); font-size: .67rem; font-weight: 850; text-transform: uppercase; }
+.recovery-success { min-height: 0; margin: 20px 0; padding: 24px 18px; border: 1px solid var(--green); border-radius: 12px; background: rgba(43, 202, 111, .1); scroll-margin-block: 100px; }
+.recovery-success:focus { outline: 2px solid var(--green); outline-offset: 4px; }
+.recovery-success > span { color: var(--green); }
+.account-panel .recovery-error { padding: 12px; border: 1px solid #ef8290; border-radius: 9px; color: #ffc3cb; background: rgba(180, 35, 60, .12); font-size: .85rem; }
+.account-panel .recovery-hint { margin: 0; font-size: .8rem; overflow-wrap: anywhere; }
+.account-submit:disabled { cursor: wait; opacity: .65; }
 .account-recovery { max-width: 620px; min-height: 680px; }
 .account-recovery .account-panel { margin-top: 65px; }
 .account-recovery .account-panel > h1 { margin: 12px 0; }

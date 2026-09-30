@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Codespaces forwards the public host but rewrites Origin to localhost:3000.
+  // Limit this exception to that exact origin while running inside Codespaces.
+  ...(process.env.CODESPACES === "true" ? {
+    experimental: {
+      serverActions: { allowedOrigins: ["localhost:3000"] },
+    },
+  } : {}),
   images: {
     remotePatterns: [
       {
