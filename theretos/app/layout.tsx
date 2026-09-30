@@ -19,6 +19,9 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <SupabaseProfileSync />
+          <aside aria-label="Aviso de demostración" style={{ padding: "0.75rem 1rem", textAlign: "center", background: "#211b30", color: "#fff" }}>
+            eTickets, XP, niveles y actividad de juego son datos demo, sin valor real. Los datos de tu cuenta se guardan en Supabase.
+          </aside>
           {children}
         </AuthProvider>
       </body>

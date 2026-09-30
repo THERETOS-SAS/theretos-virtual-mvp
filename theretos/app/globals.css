@@ -3355,6 +3355,9 @@ body:not([data-auth="user"]) .history-content { visibility: hidden; }
 .profile-details { margin-bottom: 48px; padding: 27px; border: 1px solid var(--border); border-radius: 19px; background: #09090b; }
 .profile-details > div:first-child > span { color: var(--purple-light); font-size: .62rem; font-weight: 850; letter-spacing: .12em; }
 .profile-details h2 { margin: 7px 0 22px; text-transform: uppercase; }
+.profile-save-success { margin: 0 0 16px; padding: 14px 16px; display: grid; gap: 4px; border: 1px solid #4ade80; border-radius: 10px; color: #dcfce7; background: #123321; font-size: .875rem; line-height: 1.5; scroll-margin-block: 96px; }
+.profile-save-success strong { color: #86efac; font-size: 1rem; }
+.profile-save-success:focus-visible { outline: 2px solid #86efac; outline-offset: 3px; }
 .profile-details-editor > dl { margin: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border: 1px solid var(--border); border-radius: 12px; }
 .profile-details-editor dl div { padding: 15px; }
 .profile-details-editor dl div + div { border-left: 1px solid var(--border); }
