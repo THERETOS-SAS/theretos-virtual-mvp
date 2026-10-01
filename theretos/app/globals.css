@@ -3339,6 +3339,14 @@ body:not([data-auth="user"]) .history-content { visibility: hidden; }
 .account-panel .recovery-error { padding: 12px; border: 1px solid #ef8290; border-radius: 9px; color: #ffc3cb; background: rgba(180, 35, 60, .12); font-size: .85rem; }
 .account-panel .recovery-hint { margin: 0; font-size: .8rem; overflow-wrap: anywhere; }
 .account-submit:disabled { cursor: wait; opacity: .65; }
+.account-form-fields { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 15px; }
+.account-notice { margin: 16px 0; padding: 16px; border: 1px solid; border-radius: 12px; scroll-margin-block: 100px; overflow-wrap: anywhere; }
+.account-notice h3 { margin: 0 0 8px; font-size: 1rem; }
+.account-panel .account-notice p { font-size: .85rem; }
+.account-notice a { display: inline-block; margin-top: 8px; color: var(--gold); text-decoration: underline; }
+.account-notice-success { border-color: var(--green); background: rgba(43, 202, 111, .1); }
+.account-notice-error { border-color: #ef8290; background: rgba(180, 35, 60, .12); }
+.account-notice:focus { outline: 2px solid var(--gold); outline-offset: 3px; }
 .account-recovery { max-width: 620px; min-height: 680px; }
 .account-recovery .account-panel { margin-top: 65px; }
 .account-recovery .account-panel > h1 { margin: 12px 0; }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 import { AccountFormField } from "./AccountFormField";
 import { createClient } from "@/lib/supabase/client";
 import { safeInternalPath } from "@/lib/auth-redirect";
@@ -8,11 +9,15 @@ import { safeInternalPath } from "@/lib/auth-redirect";
 export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const submitting = useRef(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
+    if (submitting.current) return;
+    submitting.current = true;
     setMessage("");
+    setNeedsConfirmation(false);
     setLoading(true);
 
     const form = new FormData(event.currentTarget);
@@ -30,8 +35,14 @@ export function LoginForm() {
       });
 
       if (error) {
-        console.error(error);
-        setMessage("Correo o contraseña incorrectos.");
+        if (error.code === "email_not_confirmed") {
+          setNeedsConfirmation(true);
+          setMessage("Debes confirmar tu correo antes de iniciar sesión.");
+        } else if (error.status === 429) {
+          setMessage("Hay demasiados intentos. Espera unos minutos antes de volver a iniciar sesión.");
+        } else {
+          setMessage("No pudimos iniciar sesión. Revisa tu correo, contraseña y conexión.");
+        }
         return;
       }
 
@@ -41,18 +52,18 @@ export function LoginForm() {
       );
 
       window.location.assign(returnUrl);
-    } catch (error) {
-      console.error(error);
+    } catch {
       setMessage(
         "No pudimos iniciar sesión. Verifica tu conexión e inténtalo nuevamente."
       );
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
 
   return (
-    <form className="account-form" onSubmit={handleSubmit}>
+    <form className="account-form" onSubmit={handleSubmit} aria-busy={loading}>
       <AccountFormField
         id="login-email"
         name="login-email"
@@ -60,6 +71,7 @@ export function LoginForm() {
         type="email"
         autoComplete="email"
         required
+        disabled={loading}
       />
 
       <AccountFormField
@@ -69,13 +81,15 @@ export function LoginForm() {
         type="password"
         autoComplete="current-password"
         required
+        disabled={loading}
       />
 
       {message && (
-        <p role="alert" style={{ marginTop: "1rem" }}>
+        <p className="recovery-error" role="alert">
           {message}
         </p>
       )}
+      {needsConfirmation && <Link className="account-text-link" href="/resend-confirmation">Reenviar correo de confirmación</Link>}
 
       <button type="submit" className="account-submit" disabled={loading}>
         {loading ? "Ingresando..." : "Iniciar sesión"}
