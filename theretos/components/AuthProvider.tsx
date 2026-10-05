@@ -14,11 +14,15 @@ const PLAYER_KEY = "theretos_player_v1";
 const TOURNAMENTS_KEY = "theretos_tournaments_v1";
 const HISTORY_KEY = "theretos_history_v1";
 const WELCOME_BONUS_KEY = "theretos_welcome_bonus_v1";
+export function isProtectedAccountPath(pathname: string) {
+  return ["/profile", "/my-prizes", "/history"].includes(pathname);
+}
 export type DemoPlayer = { [Key in keyof typeof mockPlayer]: (typeof mockPlayer)[Key] extends number ? number : string };
 type ProfileUpdate = Partial<Pick<DemoPlayer, "name" | "firstName" | "lastName" | "email" | "phone">>;
+type LogoutStatus = "idle" | "pending" | "success" | "error";
 type ParticipationResult = { status: "success"; tournament: MockTournament; participation: HistoryEntry; newBalance: number } | { status: "full" | "insufficient" | "unavailable" };
 type AttemptResult = { status: "success"; participation: HistoryEntry } | { status: "invalid" | "already-completed" };
-type AuthContextValue = { isAuthenticated: boolean; isReady: boolean; sessionUserId: string | null; profileStatus: "loading" | "ready" | "error"; loadProfile: () => Promise<void>; user: DemoPlayer | null; tournaments: MockTournament[]; history: HistoryEntry[]; login: () => void; loginDemo: () => void; logout: () => void; register: (profile?: ProfileUpdate) => void; signupDemo: (profile?: ProfileUpdate) => void; updateProfile: (profile: ProfileUpdate, expectedUserId: string) => boolean; participate: (tournamentId: string) => ParticipationResult; startTournamentAttempt: (participationId: string) => AttemptResult; completeTournamentAttempt: (participationId: string, result: GameResult) => AttemptResult; recordPracticeResult: (gameName: string, result: GameResult) => void };
+type AuthContextValue = { isAuthenticated: boolean; isReady: boolean; sessionUserId: string | null; profileStatus: "loading" | "ready" | "error"; loadProfile: () => Promise<void>; user: DemoPlayer | null; tournaments: MockTournament[]; history: HistoryEntry[]; login: () => void; loginDemo: () => void; logout: () => Promise<void>; logoutStatus: LogoutStatus; logoutMessage: string; register: (profile?: ProfileUpdate) => void; signupDemo: (profile?: ProfileUpdate) => void; updateProfile: (profile: ProfileUpdate, expectedUserId: string) => boolean; participate: (tournamentId: string) => ParticipationResult; startTournamentAttempt: (participationId: string) => AttemptResult; completeTournamentAttempt: (participationId: string, result: GameResult) => AttemptResult; recordPracticeResult: (gameName: string, result: GameResult) => void };
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -27,6 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setReady] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [profileStatus, setProfileStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [logoutStatus, setLogoutStatus] = useState<LogoutStatus>("idle");
+  const [logoutMessage, setLogoutMessage] = useState("");
+  const logoutPendingRef = useRef(false);
   const sessionUserIdRef = useRef<string | null>(null);
   const profileRequestRef = useRef(0);
   const [player, setPlayer] = useState<DemoPlayer>({ ...mockPlayer });
@@ -41,21 +48,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }, []);
 
   const logout = useCallback(async () => {
-    const { error } = await createClient().auth.signOut();
-    if (error) {
-      console.error("Error cerrando sesión de Supabase", error);
-      return;
-    }
-    sessionUserIdRef.current = null;
-    profileRequestRef.current += 1;
-    setSessionUserId(null);
-    setAuthenticated(false);
-    setProfileStatus("loading");
+    const startingUserId = sessionUserIdRef.current;
+    if (logoutPendingRef.current || !startingUserId) return;
+    logoutPendingRef.current = true;
+    setLogoutStatus("pending");
+    setLogoutMessage("");
     try {
-      localStorage.removeItem("theretos_demo_session");
-      localStorage.removeItem("theretos-auth-session");
+      // Preserve the existing Supabase sign-out scope. The auth event can
+      // clear this browser's session even when remote revocation returns error.
+      const { error } = await createClient().auth.signOut();
+      if (sessionUserIdRef.current && sessionUserIdRef.current !== startingUserId) {
+        setLogoutStatus("error");
+        setLogoutMessage("La cuenta cambió durante la solicitud. Revisa la sesión actual antes de volver a cerrarla.");
+        return;
+      }
+      if (error) throw error;
+      sessionUserIdRef.current = null;
+      profileRequestRef.current += 1;
+      setSessionUserId(null);
+      setAuthenticated(false);
+      setProfileStatus("loading");
+      const cleared = { ...playerRef.current, firstName: "", lastName: "", name: "", email: "", phone: "" };
+      playerRef.current = cleared;
+      setPlayer(cleared);
+      try {
+        localStorage.removeItem("theretos_demo_session");
+        localStorage.removeItem("theretos-auth-session");
+      } catch {
+        // Storage cleanup cannot turn a confirmed sign-out into a failure.
+      }
+      setLogoutStatus("success");
+      setLogoutMessage("Tu sesión se cerró correctamente. Puedes volver a iniciar sesión cuando quieras.");
     } catch {
-      // La sesión real ya se cerró aunque el navegador bloquee storage.
+      setLogoutStatus("error");
+      setLogoutMessage(sessionUserIdRef.current
+        ? "No pudimos confirmar el cierre de sesión. Revisa tu conexión y vuelve a intentarlo."
+        : "La sesión de este navegador se cerró, pero no pudimos confirmar el cierre en Supabase. Para reintentarlo, vuelve a iniciar sesión.");
+    } finally {
+      logoutPendingRef.current = false;
     }
   }, []);
 
@@ -163,6 +193,10 @@ function applySession(user: User | null) {
   if (!active) return;
   const nextId = user?.id ?? null;
   if (sessionUserIdRef.current !== nextId) {
+    if (nextId && !logoutPendingRef.current) {
+      setLogoutStatus("idle");
+      setLogoutMessage("");
+    }
     sessionUserIdRef.current = nextId;
     profileRequestRef.current += 1;
     setSessionUserId(nextId);
@@ -209,8 +243,13 @@ return () => {
 };
 }, []);
 
-  useEffect(() => { if (!isReady) return; document.body.dataset.auth = isAuthenticated ? "user" : "guest"; if (!isAuthenticated && ["/profile", "/my-prizes", "/history"].includes(pathname)) router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`); }, [isAuthenticated, isReady, pathname, router]);
-  useEffect(() => { const handleLogout = (event: MouseEvent) => { const link = (event.target as Element).closest<HTMLAnchorElement>('.profile-security-grid a[href="/"]'); if (!link) return; event.preventDefault(); logout(); router.push("/"); }; document.addEventListener("click", handleLogout); return () => document.removeEventListener("click", handleLogout); }, [logout, router]);
+  useEffect(() => {
+    if (!isReady) return;
+    document.body.dataset.auth = isAuthenticated ? "user" : "guest";
+    if (!isAuthenticated && logoutStatus !== "pending" && isProtectedAccountPath(pathname)) {
+      router.replace(logoutStatus === "success" ? "/login" : `/login?returnTo=${encodeURIComponent(pathname)}`);
+    }
+  }, [isAuthenticated, isReady, logoutStatus, pathname, router]);
   const participate = useCallback((tournamentId: string): ParticipationResult => {
     if (participatingRef.current) return { status: "unavailable" };
     const tournament = tournamentsRef.current.find((item) => item.id === tournamentId);
@@ -256,7 +295,7 @@ return () => {
     const entry: HistoryEntry = { id: `practice-${now.getTime()}`, type: "practice", game: gameName, gameName, gameSlug: result.gameSlug, score: result.score, date: new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeStyle: "short" }).format(now), createdAt: now.toISOString(), completedAt: now.toISOString(), status: "completed", durationMs: result.durationMs, metrics: result.metrics };
     const updatedHistory = [entry, ...historyRef.current]; historyRef.current = updatedHistory; setHistory(updatedHistory); localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
   }, [isAuthenticated]);
-  const value = useMemo(() => ({ isAuthenticated: isAuthenticated && Boolean(sessionUserId), isReady, sessionUserId, profileStatus, loadProfile, user: isAuthenticated && sessionUserId ? player : null, tournaments, history, login: activate, loginDemo: activate, register, signupDemo: register, updateProfile, logout, participate, startTournamentAttempt, completeTournamentAttempt, recordPracticeResult }), [activate, completeTournamentAttempt, history, isAuthenticated, isReady, sessionUserId, profileStatus, loadProfile, logout, participate, player, recordPracticeResult, register, startTournamentAttempt, tournaments, updateProfile]);
+  const value = useMemo(() => ({ isAuthenticated: isAuthenticated && Boolean(sessionUserId), isReady, sessionUserId, profileStatus, loadProfile, user: isAuthenticated && sessionUserId ? player : null, tournaments, history, login: activate, loginDemo: activate, register, signupDemo: register, updateProfile, logout, logoutStatus, logoutMessage, participate, startTournamentAttempt, completeTournamentAttempt, recordPracticeResult }), [activate, completeTournamentAttempt, history, isAuthenticated, isReady, sessionUserId, profileStatus, loadProfile, logout, logoutStatus, logoutMessage, participate, player, recordPracticeResult, register, startTournamentAttempt, tournaments, updateProfile]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

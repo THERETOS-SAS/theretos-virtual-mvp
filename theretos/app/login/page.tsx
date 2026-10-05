@@ -5,6 +5,7 @@ import { Header } from "../../components/Header";
 import { IconArrow, IconGamepad, IconProgress, IconTrophy } from "../../components/icons";
 import { LoginForm } from "../../components/LoginForm";
 import { LoginConfirmationNotice } from "../../components/LoginConfirmationNotice";
+import { LogoutFeedback } from "../../components/AuthUX";
 
 export const metadata: Metadata = { title: "Iniciar sesión | THERETOS", description: "Vuelve a tu cuenta THERETOS." };
 
@@ -28,6 +29,7 @@ export default async function LoginPage({ searchParams }: {
           </section>
           <section className="account-panel">
             <h2>Bienvenido de nuevo</h2>
+            <LogoutFeedback />
             <LoginConfirmationNotice intent={intent} />
             <LoginForm />
             <Link href="/forgot-password" className="account-text-link">¿Olvidaste tu contraseña?</Link>

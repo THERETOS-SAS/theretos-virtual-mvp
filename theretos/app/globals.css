@@ -3389,6 +3389,9 @@ body:not([data-auth="user"]) .history-content { visibility: hidden; }
 .profile-security-grid button, .profile-security-grid a { min-height: 41px; margin: 6px 7px 0 0; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); background: transparent; font-size: .59rem; font-weight: 800; text-transform: uppercase; }
 .profile-security-grid a { color: var(--gold-light); }
 .profile-security-grid a svg { width: 15px; }
+.profile-security-grid .auth-logout { color: var(--gold-light); cursor: pointer; }
+.profile-security-grid .auth-logout svg { width: 15px; }
+.auth-logout:disabled { cursor: wait; opacity: .65; }
 .history-hero { padding: 62px 0 42px; }
 .history-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid var(--border); border-radius: 17px; background: #09090b; }
 .history-summary article { padding: 22px; display: grid; gap: 8px; }
