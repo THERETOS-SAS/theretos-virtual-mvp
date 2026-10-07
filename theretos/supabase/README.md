@@ -71,3 +71,13 @@ conecta a Supabase.
 Referencias: [RLS de Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [permisos por columna](https://supabase.com/docs/guides/database/postgres/column-level-security)
 y [policies restrictivas de PostgreSQL](https://www.postgresql.org/docs/current/sql-createpolicy.html).
+
+## THERETOS Core v1
+
+La fundación de catálogo, progreso, sesiones y ledgers de XP/tickets se documenta
+en [THERETOS-CORE-v1.md](THERETOS-CORE-v1.md). Incluye la
+[migración versionada](migrations/202610070001_theretos_core_v1.sql) y una
+[inspección de solo lectura](inspect-theretos-core.sql) para antes y después de
+aplicarla manualmente. No se ha ejecutado contra Supabase; no conecta todavía
+los juegos ni reemplaza los datos demo de la UI. Leer los pasos de aplicación,
+permisos esperados y pruebas con dos cuentas antes de aplicarla.
