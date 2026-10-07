@@ -69,8 +69,9 @@ $preflight$;
 
 alter table public.profiles enable row level security;
 
--- Quitar UPDATE de tabla no basta si ya existen grants UPDATE por columna.
+-- Quitar SELECT/UPDATE de tabla no basta si ya existen grants por columna.
 -- No tocamos permisos de INSERT/DELETE ni roles internos/service_role.
+revoke select on table public.profiles from public, anon, authenticated;
 revoke update on table public.profiles from public, anon, authenticated;
 
 do $column_grants$
@@ -84,9 +85,14 @@ begin
     and attnum > 0 and not attisdropped;
 
   execute format(
-    'revoke update (%s) on table public.profiles from public, anon, authenticated',
-    columns_sql
-  );
+  'revoke select (%s) on table public.profiles from public, anon, authenticated',
+  columns_sql
+);
+
+execute format(
+  'revoke update (%s) on table public.profiles from public, anon, authenticated',
+  columns_sql
+);
 end;
 $column_grants$;
 
@@ -126,6 +132,7 @@ do $verify_grants$
 declare
   field record;
   editable boolean;
+  selectable boolean;
 begin
   for field in
     select attname, attnum from pg_attribute
@@ -133,7 +140,17 @@ begin
       and attnum > 0 and not attisdropped
   loop
     editable := field.attname in ('first_name', 'last_name', 'display_name', 'phone');
+    selectable := field.attname in ('id', 'first_name', 'last_name', 'display_name', 'phone');
 
+    if has_column_privilege('anon', 'public.profiles', field.attname, 'SELECT') then
+      raise exception 'anon conserva SELECT efectivo en %; revisar grants heredados.', field.attname;
+    end if;
+
+    if has_column_privilege('authenticated', 'public.profiles', field.attname, 'SELECT')
+      is distinct from selectable then
+      raise exception 'SELECT efectivo inesperado para authenticated en %; revisar grants heredados.', field.attname;
+    end if;
+    
     if has_column_privilege('anon', 'public.profiles', field.attname, 'UPDATE') then
       raise exception 'anon conserva UPDATE efectivo en %; revisar grants heredados.', field.attname;
     end if;
