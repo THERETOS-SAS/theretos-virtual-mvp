@@ -176,7 +176,7 @@ begin
       expression := regexp_replace(item.check_expression, '[[:space:]()]', '', 'g');
       -- Lista cerrada de estados conocidos; no aceptar funciones ni expresiones arbitrarias.
       if expression !~ '^status=ANYARRAY\[''([a-z-]+)''::text(,''[a-z-]+''::text)*\]$'
-        or regexp_replace(expression, '''(active|inactive|available|coming-soon|disabled)''::text,?', '', 'g') <> 'status=ANYARRAY[]' then
+        or regexp_replace(expression, '''(active|inactive|archived|available|coming-soon|disabled)''::text,?', '', 'g') <> 'status=ANYARRAY[]' then
         raise exception 'CHECK de estado games legacy desconocido.';
       end if;
     else raise exception 'Constraint games legacy desconocida: %.', item.conname;
@@ -506,7 +506,7 @@ on conflict (user_id) do nothing;
 
 insert into public.games (slug, name, status) values
   ('atrapa-monedas', 'Atrapa Monedas', 'available'),
-  ('tap-frenetico', 'Tap Frenético', 'available'),
+  ('tap-frenetico', 'Tap FrenÃ©tico', 'available'),
   ('revienta-globos', 'Revienta Globos', 'available'),
   ('golpea-topos', 'Golpea Topos', 'available'),
   ('bolas', 'Bolas', 'available'),
