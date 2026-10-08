@@ -443,6 +443,7 @@ for (const [name, change] of [
   ["an altered legacy user foreign key", "alter table public.game_sessions drop constraint game_sessions_user_id_fkey; alter table public.game_sessions add constraint game_sessions_user_id_fkey foreign key (user_id) references public.profiles(id)"],
   ["partial Core tables", "create table public.player_progress (marker text); insert into public.player_progress values ('keep partial')"],
   ["an unexpected legacy trigger", "create function public.unexpected_game_trigger() returns trigger language plpgsql as $$ begin return new; end; $$; create trigger unexpected_game_trigger before update on public.games for each row execute function public.unexpected_game_trigger()"],
+  ["an unknown legacy game status", "alter table public.games drop constraint games_status_check; alter table public.games add constraint games_status_check check (status in ('active','inactive','archived','forged'))"],
 ]) {
   test(`preflight rejects ${name} without changing legacy data`, async () => {
     await withLegacy(async (fresh) => {
