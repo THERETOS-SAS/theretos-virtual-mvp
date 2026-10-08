@@ -75,9 +75,36 @@ y [policies restrictivas de PostgreSQL](https://www.postgresql.org/docs/current/
 ## THERETOS Core v1
 
 La fundación de catálogo, progreso, sesiones y ledgers de XP/tickets se documenta
-en [THERETOS-CORE-v1.md](THERETOS-CORE-v1.md). Incluye la
-[migración versionada](migrations/202610070001_theretos_core_v1.sql) y una
-[inspección de solo lectura](inspect-theretos-core.sql) para antes y después de
-aplicarla manualmente. No se ha ejecutado contra Supabase; no conecta todavía
-los juegos ni reemplaza los datos demo de la UI. Leer los pasos de aplicación,
-permisos esperados y pruebas con dos cuentas antes de aplicarla.
+en [THERETOS-CORE-v1.md](THERETOS-CORE-v1.md). La
+[migración versionada](migrations/202610070001_theretos_core_v1.sql) se corrige
+antes de su primera instalación exitosa: el intento anterior en
+`theretos-2-dev` abortó porque ya existe el esquema legado. **Esta revisión no
+ejecuta nada contra Supabase.**
+
+El catálogo existente se adopta con `games.id UUID` como PK interna y
+`UNIQUE(slug)` como identificador público. Los cinco juegos conservan UUID,
+slug, nombre y `created_at`; `active` pasa a `available`. Solo se agregan
+`tiro-perfecto` y `memoria-flash` si faltan, con UUID nuevos y `coming-soon`.
+Las sesiones conservan `game_id UUID → games(id)` para no sustituir identidades
+existentes por texto.
+
+`game_sessions` se reconstruye con su mismo nombre únicamente si sigue vacía,
+después de bloquearla y contar todas las filas dentro de `BEGIN ... COMMIT`.
+Una sola fila o una estructura desconocida aborta toda la operación. No hay
+`DROP CASCADE`. Se elimina `Users can start own game sessions`, se revocan
+escrituras de tabla y columna del navegador y se mantiene lectura propia.
+Crear, enviar, validar y premiar sesiones será responsabilidad del futuro
+servidor. No se importa XP/tickets de `localStorage`.
+
+La [inspección de solo lectura](inspect-theretos-core.sql) funciona antes y
+después, termina en `ROLLBACK` y permite comparar UUID, nombres, fechas, PK,
+unicidad del slug, FK y permisos. Antes de aplicar manualmente en
+**`theretos-2-dev`**, seguir los
+[pasos exactos de aplicación y verificación](THERETOS-CORE-v1.md#aplicación-manual-en-theretos-2-dev).
+El snapshot legado disponible no describe toda su metadata: si la inspección o
+el preflight muestran otro esquema, conservar los datos y revisar la diferencia,
+sin quitar protecciones para forzar la instalación.
+
+Core no conecta todavía los juegos ni reemplaza los datos demo de la UI.
+Los scripts de perfiles de las secciones anteriores son independientes; esta
+revisión conserva sus datos, policies y flujo de registro.

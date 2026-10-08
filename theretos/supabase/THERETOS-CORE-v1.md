@@ -3,33 +3,103 @@
 Fundación de persistencia para THERETOS 2.0, gratuito y sin entrada pagada. Los
 tickets son unidades internas: no son dinero, no se retiran ni se compran para
 competir. Esta entrega prepara la base de datos; los juegos y la UI continúan con
-sus datos demo. **La migración no se ha aplicado a Supabase desde este trabajo.**
+sus datos demo. **Esta revisión no ejecuta nada contra Supabase.** El intento
+anterior en `theretos-2-dev` abortó al encontrar el catálogo legado; no hay una
+instalación Core exitosa conocida. Por eso se corrige el archivo de la migración
+antes de su primera instalación real.
 
 Archivos operativos:
 
 - [Migración versionada](migrations/202610070001_theretos_core_v1.sql).
 - [Inspección de solo lectura](inspect-theretos-core.sql), utilizable antes y después.
 
+## Adopción del esquema legado
+
+En `theretos-2-dev` ya existen `public.games` y `public.game_sessions`.
+El catálogo usa `id UUID`, `slug`, `name`, `status`, `created_at` y
+`updated_at`. Las cinco filas observadas tienen estado `active`:
+
+| Slug | UUID que se conserva |
+| --- | --- |
+| `atrapa-monedas` | `339b4240-92f8-48d7-b798-0b50fd05130e` |
+| `tap-frenetico` | `77141165-b5ba-4388-b712-08e0232798e8` |
+| `revienta-globos` | `3ba763c6-4e57-4d30-bef9-89a9b3c7b3c1` |
+| `golpea-topos` | `8989273d-40dd-400f-92a0-984c50326df5` |
+| `bolas` | `64025093-de9a-49e8-a4c4-42bfd7fd907c` |
+
+La migración adopta la tabla existente: conserva `id`, `slug`, `name` y
+`created_at` de cada juego. Convierte `active` a `available`, mantiene la PK
+UUID y garantiza `UNIQUE(slug)`. No borra ni reemplaza `games`; solamente
+inserta `tiro-perfecto` y `memoria-flash` si faltan, con UUID generados y
+estado `coming-soon`. No sobrescribe sus UUID si ya existen.
+
+Las sesiones legadas usan `game_id UUID REFERENCES public.games(id)`. Se
+conserva esa relación porque el UUID es la identidad interna del juego y el
+slug es su identificador público estable. El futuro servidor resolverá el slug
+contra `games` antes de crear una sesión; no se introduce `game_slug`.
+
+El conteo de sesiones observado es cero. La migración vuelve a comprobarlo
+**después de un bloqueo ACCESS EXCLUSIVE y dentro de la misma transacción**,
+con `row_security = off` para no ocultar filas mediante RLS. Si aparece una
+sola fila, aborta y conserva todos los datos. Solo tras confirmar cero filas,
+reconstruye `public.game_sessions` sin `CASCADE`, conservando su nombre y
+creando las restricciones Core. Los modos legados `practice/tournament/mission`
+y los estados `started/completed/cancelled/invalid` desaparecen; no hay sesiones
+históricas que convertir.
+
+La policy legada `Anyone can view active games` se reemplaza para permitir leer
+el catálogo nuevo. Se elimina `Users can start own game sessions` y se revocan
+los permisos de inserción de tabla y columna del navegador. La lectura propia
+queda bajo las policies Core. Inicio, envío y validación de sesiones quedan
+reservados a una futura implementación de servidor con identidad autenticada.
+
+El preflight admite tres situaciones: instalación nueva sin objetos Core,
+las dos tablas legadas compatibles juntas, o Core UUID completo con sus
+huellas intactas. Detecta instalaciones parciales y rechaza el Core anterior
+con PK de slug. La nueva marca de esquema es `theretos-core-v1-uuid`.
+
+El snapshot legado disponible no incluye todos los tipos, defaults, índices
+y dependencias. Deben revisarse en la inspección manual antes de instalar.
+El preflight exige `text` para slug/nombre/estados/modo, `timestamptz` para fechas
+y UUID para identidades. En sesiones se esperan `id`, `user_id`, `game_id`,
+`mode`, `status`, `score` y `duration_ms`; score y duración pueden ser `integer`
+o `bigint`. Se admiten los timestamps legados `started_at`, `completed_at`,
+`created_at` y `updated_at`.
+
+Los índices legados deben ser btree simples, sin expresiones ni predicados;
+un índice único debe respaldar una constraint reconocida. Los defaults del
+catálogo se comparan con una lista cerrada de expresiones UUID, fecha y estado
+conocidas; no se ejecutan defaults arbitrarios. Columnas, triggers u otras
+estructuras desconocidas hacen abortar la adopción. Una dependencia que impida
+reconstruir sesiones también aborta; no se elimina con `CASCADE`. Los fixtures
+locales completan metadata no observada con supuestos explícitos, como defaults
+y el CHECK `active/inactive` de juegos; no certifican el esquema remoto completo.
+
+Ante una estructura no reconocida, datos incompatibles o conflicto inesperado,
+se produce `RAISE EXCEPTION` y rollback completo. No se reparan objetos a
+ciegas y no se borra `profiles` ni `auth`.
+
 ## Arquitectura
 
 | Tabla pública | Responsabilidad y restricciones principales |
 | --- | --- |
-| `games` | Catálogo por `slug`; nombre no vacío; estados `available`, `coming-soon`, `disabled`. |
+| `games` | `id UUID` como PK, `slug` público único; nombre no vacío; estados `available`, `coming-soon`, `disabled`. |
 | `player_progress` | Una fila por `profiles.id`; XP, tickets y partidas no negativos; nivel al menos 1. |
-| `game_sessions` | Sesiones propias vinculadas a un juego; modo `practice` o `competitive`; resultado y ciclo de vida. |
+| `game_sessions` | Sesiones propias con `game_id UUID` → `games(id)`; modo `practice` o `competitive`; resultado y ciclo de vida. |
 | `xp_ledger` | Movimientos de XP estrictamente positivos, con motivo y `event_key` único por ledger. |
 | `tickets_ledger` | Movimientos de tickets positivos o negativos, nunca cero; motivo y `event_key` único por ledger. |
 
 Todas las tablas llevan `created_at`; catálogo, progreso y sesiones también llevan
-`updated_at`, actualizado mediante trigger. Los identificadores de sesión y
+`updated_at`, actualizado mediante trigger. Los identificadores de juego, sesión y
 movimiento son UUID. Las FK usan `ON UPDATE RESTRICT` y `ON DELETE RESTRICT`.
 `player_progress` referencia `profiles`; sesiones y movimientos referencian
 `player_progress`. La FK compuesta `(game_session_id, user_id)` exige que una
 recompensa vinculada a sesión pertenezca al mismo usuario.
 Referencia: [restricciones de PostgreSQL](https://www.postgresql.org/docs/current/ddl-constraints.html).
 
-El seed coincide con `allMockGames` en `data/mockGames.ts`: reúne `mockGames`,
-incluido `bolas`, y `legacyMockGames`. No modifica ese catálogo de la aplicación.
+Los siete slugs finales coinciden con `allMockGames` en `data/mockGames.ts`.
+Los nombres de las cinco filas legadas se conservan, aunque difieran del catálogo
+demo. No se modifica ese catálogo de la aplicación.
 
 | Slug | Nombre | Estado inicial |
 | --- | --- | --- |
@@ -44,8 +114,8 @@ incluido `bolas`, y `legacyMockGames`. No modifica ese catálogo de la aplicaci�
 El trigger de inserción en `profiles` crea progreso en cero y nivel 1. El backfill
 crea únicamente las filas faltantes; no importa XP, tickets o historial de
 `localStorage`. El seed usa `ON CONFLICT DO NOTHING`: una repetición conserva
-nombres, estados y progreso existentes. No hay fórmula de nivel en v1; ganar XP
-no modifica automáticamente el nivel.
+UUID, nombres, fechas originales, estados y progreso existentes. No hay fórmula
+de nivel en v1; ganar XP no modifica automáticamente el nivel.
 
 ## Contabilidad y concurrencia
 
@@ -81,6 +151,14 @@ contabilidad y utilizar transacciones cuando validación y premios deban ser
 atómicos entre sí.
 
 ## Sesiones
+
+Campos finales: `id UUID` (PK), `user_id UUID`, `game_id UUID`, `mode`,
+`status`, `score`, `duration_ms`, `metrics jsonb`, `client_version`,
+`rejection_reason`, `started_at`, `submitted_at`, `validated_at`,
+`expires_at`, `created_at` y `updated_at`. `user_id` referencia
+`player_progress(user_id)`, que a su vez exige un perfil existente. El servidor
+futuro debe derivarlo de la sesión autenticada, nunca aceptarlo como autoridad
+del navegador.
 
 Una sesión nace únicamente como `started`, sin resultado ni fechas de envío o
 validación, para un juego `available`. El escritor autorizado debe fijar un
@@ -165,61 +243,81 @@ Referencia: [seguridad de funciones en Supabase](https://supabase.com/docs/guide
 El script no sustituye triggers de `auth.users`, no reescribe el registro y no
 cambia permisos/policies de `profiles`. Añade únicamente su trigger a `profiles`.
 
-## Aplicación manual en Supabase
+## Aplicación manual en theretos-2-dev
 
-1. Abrir el proyecto correcto de Supabase y **SQL Editor**. Usar el propietario
-   de `profiles`; no introducir credenciales administrativas en la app ni editar
-   `.env.local`. Verificar que se está usando la migración de la rama
-   `theretos-2.0`, no otro archivo con nombre parecido.
-2. Ejecutar completo [inspect-theretos-core.sql](inspect-theretos-core.sql) y
-   también [inspect-profiles.sql](inspect-profiles.sql). Conservar sus resultados.
-   En una instalación nueva faltarán las cinco tablas Core; los resúmenes de
-   tablas ausentes aparecen como `NULL`. Confirmar `profiles.id` UUID, NOT NULL,
-   PK/UNIQUE no diferible, y revisar los triggers de registro actuales.
-3. Si existen tablas con estos nombres que no pertenecen a esta migración, o un
-   esquema `theretos_core` ajeno, detener la aplicación y revisar el conflicto.
-   No borrar tablas, marcar objetos ajenos como Core ni quitar comprobaciones
-   para forzar el script. La repetición admite objetos propios de Core con el
-   mismo propietario, el esquema marcado `theretos-core-v1` y las tablas con su
-   huella `theretos-core-v1:<md5>` intacta.
+Estos pasos son para el **8 de octubre de 2026**, o cuando se decida aplicar la
+revisión. No se ha ejecutado ningún paso contra Supabase durante este trabajo.
+
+1. Usar la rama `theretos-2.0` y el commit de esta revisión. Abrir el dashboard
+   de Supabase y seleccionar explícitamente **`theretos-2-dev`**. Confirmar el
+   nombre del proyecto antes de abrir **SQL Editor**. Ejecutar como propietario
+   de `profiles`; no colocar credenciales administrativas en la app ni modificar
+   `.env.local`.
+2. Ejecutar completo [inspect-profiles.sql](inspect-profiles.sql) y después
+   [inspect-theretos-core.sql](inspect-theretos-core.sql). Ambos son de lectura.
+   Guardar/exportar los resultados previos para poder comparar UUID, nombres y
+   `created_at`. Confirmar `profiles.id UUID NOT NULL` con PK/UNIQUE no diferible
+   y revisar sus triggers de registro existentes.
+3. En los resultados de Core, confirmar las seis columnas legadas de `games`,
+   los cinco slugs y UUID de la tabla anterior, ausencia de duplicados y estado
+   `active`. Confirmar que `game_sessions` conserva la FK UUID hacia `games(id)`
+   y que su `row_count` es **0**. Revisar las restricciones y policies legadas
+   descritas arriba. `player_progress`, `xp_ledger`, `tickets_ledger` y el esquema
+   privado Core deben estar ausentes en esta primera adopción. Si aparece una
+   estructura distinta o una fila de sesión, detenerse y conservar los resultados;
+   no borrar datos ni eliminar comprobaciones para forzar la migración.
 4. Abrir [202610070001_theretos_core_v1.sql](migrations/202610070001_theretos_core_v1.sql),
-   copiar **todo el archivo**, desde `BEGIN` hasta `COMMIT`, y ejecutarlo una vez.
-   No ejecutar fragmentos. El backfill bloquea brevemente escrituras de
-   `profiles` para coordinar registros concurrentes. `lock_timeout = '5s'`
-   evita esperar indefinidamente; si vence, reintentar en una ventana tranquila.
-5. Si aparece cualquier error, ejecutar `ROLLBACK;` si SQL Editor conserva una
-   transacción abierta. Ninguna parte de la migración debe quedar aplicada tras
-   el rollback. Conservar el error y volver a inspeccionar; no continuar con
-   bloques posteriores de forma aislada.
-6. Volver a ejecutar completo `inspect-theretos-core.sql`. Confirmar todos los
-   resultados esperados de la siguiente sección. El archivo termina en
-   `ROLLBACK` porque la inspección es de solo lectura; esto es normal.
-7. En un proyecto de prueba, repetir la migración completa y la inspección para
-   comprobar idempotencia. Debe conservar saldos, movimientos y estados del
-   catálogo. Completar las pruebas con cuentas A y B antes de dar por verificada
-   la seguridad en el proyecto real.
+   copiar **todo el archivo**, desde `BEGIN` hasta `COMMIT`, y ejecutarlo una vez
+   en el SQL Editor de **`theretos-2-dev`**. No ejecutar fragmentos. La migración
+   bloquea las tablas necesarias, vuelve a comprobar sesiones vacías y coordina
+   el backfill con los registros de perfiles. `lock_timeout = '5s'` limita la
+   espera; si vence, reintentar completo en una ventana tranquila.
+5. Si aparece cualquier error, ejecutar `ROLLBACK;` si el editor mantiene la
+   transacción abierta. Guardar el error y volver a inspeccionar: todo cambio
+   debe haberse revertido. No continuar con bloques posteriores ni hacer una
+   reconstrucción manual.
+6. Volver a ejecutar completo `inspect-theretos-core.sql`. Comparar los cinco
+   UUID, slugs, nombres y `created_at` con la exportación previa: deben ser
+   idénticos. Confirmar los cinco estados `available`, los dos juegos futuros
+   `coming-soon`, PK UUID, `UNIQUE(slug)`, FK `game_sessions.game_id → games.id`
+   y sesiones todavía vacías. Comprobar todos los permisos, restricciones y
+   agregados de la siguiente sección. La inspección termina en `ROLLBACK` por
+   ser de solo lectura; ese resultado es normal.
+7. En este entorno de desarrollo, repetir el archivo completo y la inspección
+   para verificar idempotencia: deben conservarse UUID, nombres, fechas, estados,
+   saldos y movimientos. Completar las pruebas con cuentas A y B. Verificar
+   especialmente que `Users can start own game sessions` ya no existe y que el
+   navegador no puede insertar sesiones ni escribir XP/tickets. No habilitar
+   escrituras de producción hasta implementar la capa de servidor.
 
 La migración es transaccional y repetible sobre su propio esquema. La huella de
-cada tabla registra columnas, tipos, nulabilidad, defaults y definiciones de
-restricciones, incluido su estado de validación. Antes de una repetición se
-compara la estructura actual con esa huella; eliminar una restricción o alterar
-una columna aborta la aplicación. La huella se guarda únicamente tras las
+cada tabla (`theretos-core-v1-uuid:<md5>`) registra columnas, tipos, nulabilidad,
+defaults, restricciones y su validación, índices, definición de triggers y su
+estado habilitado/deshabilitado. Antes de una repetición se compara la estructura
+actual con esa huella; eliminar una restricción, alterar una columna o desactivar
+un trigger aborta la aplicación. La huella se guarda únicamente tras las
 comprobaciones finales de seguridad.
 
 Esto detecta deriva accidental, no protege frente a un administrador capaz de
 alterar también la huella. Una actualización mayor de PostgreSQL puede cambiar
 la representación de las restricciones y requerir revisión. No modificar los
-marcadores para forzar la ejecución. Las funciones, triggers y policies propios
-se reinstalan; los datos existentes se conservan.
+marcadores para forzar la ejecución. Solo tras validar la huella intacta se
+reinstalan funciones, triggers y policies Core; los datos existentes se conservan.
 
 ## Verificación tras aplicar
 
 En la inspección deben aparecer:
 
-- Las cinco tablas con `relrowsecurity = true`, las FK y CHECK descritas, y los
+- Las cinco tablas con `relrowsecurity = true`, las FK y CHECK descritas, y
   las restricciones únicas de `game_session_id` de ambos ledgers.
-- Los siete juegos con los estados iniciales en la primera instalación. En una
-  repetición se conservan cambios administrativos previos del catálogo.
+- `games_id_uuid_not_null`, `games_id_primary_key`, `games_slug_unique`,
+  `game_sessions_game_id_uuid_not_null` y
+  `game_sessions_game_id_references_games_id` en `true`; sin slugs duplicados.
+  Las tres policies legadas de catálogo/sesiones deben haber desaparecido.
+- Los siete juegos con los estados iniciales en la primera instalación. Los
+  cinco juegos legados conservan UUID, slug, nombre y `created_at`;
+  `game_sessions.row_count = 0` tras su primera modernización. En una repetición
+  se conservan sesiones y cambios administrativos previos del catálogo.
 - Igual número de `profiles` y `player_progress`; `profiles_without_progress = 0`.
 - `xp_mismatches`, `ticket_mismatches` y `session_mismatches` en cero en el XML
   de reconciliación. La inspección informa diferencias, no las corrige.
@@ -274,15 +372,17 @@ No guardar tokens ni identificadores reales en el repositorio. Verificar además
 Desde `theretos/`, con dependencias instaladas:
 
 ```sh
-npm test
-npm run lint
-npm run build
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
 git diff --check
 ```
 
 Los tests de Node existentes siguen formando parte de `npm test`. Los de Core
 ejecutan la migración con PostgreSQL 18.3 embebido (PGlite 0.5.8) sobre fixtures aislados y
-comprueban los invariantes de la arquitectura. No contactan Supabase ni prueban
+comprueban la adopción del legado real, conservación de UUID, aborto transaccional
+si hay sesiones, eliminación de escritura del navegador y los invariantes
+contables y de sesiones. No contactan Supabase ni prueban
 su configuración real de Auth, PostgREST, roles, extensiones o políticas previas.
 Tampoco sustituyen una prueba con conexiones concurrentes independientes. Las
 verificaciones manuales anteriores siguen pendientes hasta ejecutarlas contra

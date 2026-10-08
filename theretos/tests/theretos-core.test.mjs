@@ -10,17 +10,22 @@ import { allMockGames } from "../data/mockGames.ts";
 const USER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const NEW_USER = "33333333-3333-4333-8333-333333333333";
+const COIN_GAME = "339b4240-92f8-48d7-b798-0b50fd05130e";
+const BALL_GAME = "64025093-de9a-49e8-a4c4-42bfd7fd907c";
 const SESSION = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TABLES = ["games", "player_progress", "game_sessions", "xp_ledger", "tickets_ledger"];
 const PRIVATE_TABLES = TABLES.slice(1);
 const migration = await readFile(new URL("../supabase/migrations/202610070001_theretos_core_v1.sql", import.meta.url), "utf8");
 const inspection = await readFile(new URL("../supabase/inspect-theretos-core.sql", import.meta.url), "utf8");
+const legacy = await readFile(new URL("./fixtures/theretos-legacy.sql", import.meta.url), "utf8");
 const db = new PGlite();
 const bootstrap = `
     create role anon nologin;
     create role authenticated nologin;
     create role profile_creator nologin;
     create schema auth;
+    create table auth.users (id uuid primary key);
+    insert into auth.users values ('${USER}'), ('${OTHER}');
     create function auth.uid() returns uuid language sql stable
       set search_path = '' as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema public, auth to anon, authenticated, profile_creator;
@@ -30,9 +35,12 @@ const bootstrap = `
     insert into public.profiles values ('${USER}'), ('${OTHER}');
   `;
 let inspectionBeforeMigration;
+let originalGames;
 
 before(async () => {
   await db.exec(bootstrap);
+  await db.exec(legacy);
+  originalGames = (await db.query("select id, slug, name, created_at from public.games order by slug")).rows;
   inspectionBeforeMigration = await db.exec(inspection);
   await db.exec(migration);
   await db.exec(migration);
@@ -67,8 +75,8 @@ async function roleQuery(role, sql, parameters = [], user = USER) {
 }
 
 async function startSession(user = USER, id = SESSION) {
-  await db.query(`insert into public.game_sessions (id, user_id, game_slug, mode, expires_at)
-    values ($1, $2, 'atrapa-monedas', 'competitive', clock_timestamp() + interval '1 hour')`, [id, user]);
+  await db.query(`insert into public.game_sessions (id, user_id, game_id, mode, expires_at)
+    values ($1, $2, '${COIN_GAME}', 'competitive', clock_timestamp() + interval '1 hour')`, [id, user]);
 }
 
 async function validateSession() {
@@ -109,11 +117,11 @@ test("Core SQL has no administrative key use or embedded credentials", async () 
 test("inspection runs read-only before and after Core exists and reports matching aggregates", async () => {
   assert.match(inspection, /begin transaction read only\s*;/i);
   const beforeRows = inspectionBeforeMigration.flatMap(({ rows }) => rows);
-  assert.deepEqual(beforeRows.filter((row) => Object.hasOwn(row, "row_count")), [
+  assert.deepEqual(beforeRows.filter((row) => ["player_progress", "profiles"].includes(row.table_name) && Object.hasOwn(row, "row_count")), [
     { table_name: "player_progress", row_count: null }, { table_name: "profiles", row_count: 2 },
   ]);
   const afterRows = (await db.exec(inspection)).flatMap(({ rows }) => rows);
-  assert.deepEqual(afterRows.filter((row) => Object.hasOwn(row, "row_count")), [
+  assert.deepEqual(afterRows.filter((row) => ["player_progress", "profiles"].includes(row.table_name) && Object.hasOwn(row, "row_count")), [
     { table_name: "player_progress", row_count: 2 }, { table_name: "profiles", row_count: 2 },
   ]);
   assert.deepEqual(afterRows.find((row) => Object.hasOwn(row, "profiles_without_progress")), { profiles_without_progress: 0 });
@@ -184,7 +192,7 @@ isolatedTest("both browser roles are denied all direct Core writes", async () =>
   const insert = {
     games: "insert into public.games (slug, name, status) values ('forged', 'Forged', 'available')",
     player_progress: `insert into public.player_progress (user_id) values ('${NEW_USER}')`,
-    game_sessions: `insert into public.game_sessions (user_id, game_slug, mode, expires_at) values ('${USER}', 'bolas', 'practice', now() + interval '1 hour')`,
+    game_sessions: `insert into public.game_sessions (user_id, game_id, mode, expires_at) values ('${USER}', '${BALL_GAME}', 'practice', now() + interval '1 hour')`,
     xp_ledger: `insert into public.xp_ledger (user_id, amount, reason, event_key) values ('${USER}', 999, 'forged', 'forged-xp')`,
     tickets_ledger: `insert into public.tickets_ledger (user_id, amount, reason, event_key) values ('${USER}', 999, 'forged', 'forged-tickets')`,
   };
@@ -279,8 +287,8 @@ isolatedTest("sessions validate once and terminal results cannot be edited, rese
 });
 
 isolatedTest("session lifecycle rejects forged validation, negative results and non-object metrics", async () => {
-  await rejectsSql("insert into public.game_sessions (user_id, game_slug, mode, status, expires_at) values ($1, 'bolas', 'practice', 'validated', now() + interval '1 hour')", [USER]);
-  await rejectsSql("insert into public.game_sessions (user_id, game_slug, mode, expires_at) values ($1, 'tiro-perfecto', 'practice', now() + interval '1 hour')", [USER]);
+  await rejectsSql("insert into public.game_sessions (user_id, game_id, mode, status, expires_at) values ($1, $2, 'practice', 'validated', now() + interval '1 hour')", [USER, BALL_GAME]);
+  await rejectsSql("insert into public.game_sessions (user_id, game_id, mode, expires_at) select $1, id, 'practice', now() + interval '1 hour' from public.games where slug = 'tiro-perfecto'", [USER]);
   await startSession();
   await rejectsSql("update public.game_sessions set status = 'validated' where id = $1", [SESSION]);
   for (const [score, duration, metrics] of [[-1, 1000, "{}"], [1, -1, "{}"], [1, 1000, "[]"], [1, 1000, "null"]]) {
@@ -304,6 +312,176 @@ isolatedTest("session rewards require own validated session and cannot be repeat
   assert.deepEqual(await progress(), { xp_total: "10", tickets_balance: "10", level: 1, games_played: "1" });
 });
 
+// Each preflight scenario owns a disposable database so failed DDL can be checked
+// after rollback without mutating the shared Core security/lifecycle fixture.
+async function withLegacy(run) {
+  const fresh = new PGlite();
+  try {
+    await fresh.exec(bootstrap);
+    await fresh.exec(legacy);
+    await run(fresh);
+  } finally { await fresh.close(); }
+}
+
+async function legacySnapshot(fresh) {
+  return (await fresh.query(`select
+    (select jsonb_agg(to_jsonb(g) order by g.slug, g.id) from public.games g) as games,
+    (select coalesce(jsonb_agg(to_jsonb(s) order by s.id), '[]'::jsonb) from public.game_sessions s) as sessions,
+    (select jsonb_agg(to_jsonb(p) order by p.id) from public.profiles p) as profiles,
+    (select jsonb_agg(to_jsonb(u) order by u.id) from auth.users u) as users,
+    (select jsonb_agg(to_jsonb(p) order by p.tablename, p.policyname) from pg_policies p where p.schemaname = 'public') as policies,
+    (select jsonb_agg(jsonb_build_array(c.relname, a.attname, format_type(a.atttypid, a.atttypmod), a.attnotnull) order by c.relname, a.attnum)
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace join pg_attribute a on a.attrelid = c.oid
+      where n.nspname = 'public' and c.relkind = 'r' and a.attnum > 0 and not a.attisdropped) as columns`)).rows[0];
+}
+
+async function assertLegacyRollback(fresh, action, expected = /./) {
+  const before = await legacySnapshot(fresh);
+  await assert.rejects(action(), expected);
+  await fresh.exec("rollback");
+  const after = await legacySnapshot(fresh);
+  assert.deepEqual(after, before, "failed migration must preserve all legacy data, columns and policies");
+  assert.equal((await fresh.query("select to_regnamespace('theretos_core') as core_schema")).rows[0].core_schema, null);
+}
+
+test("legacy catalog preserves all five exact UUIDs, slugs, names and creation dates", async () => {
+  const migrated = (await db.query("select id, slug, name, created_at from public.games where id = any($1::uuid[]) order by slug", [originalGames.map(({ id }) => id)])).rows;
+  assert.deepEqual(migrated, originalGames);
+  assert.equal(migrated.length, 5);
+  assert.deepEqual(migrated.map(({ id }) => id).sort(), [
+    "339b4240-92f8-48d7-b798-0b50fd05130e", "77141165-b5ba-4388-b712-08e0232798e8",
+    "3ba763c6-4e57-4d30-bef9-89a9b3c7b3c1", "8989273d-40dd-400f-92a0-984c50326df5",
+    "64025093-de9a-49e8-a4c4-42bfd7fd907c",
+  ].sort());
+  const futures = (await db.query("select id, slug, status from public.games where slug in ('tiro-perfecto', 'memoria-flash') order by slug")).rows;
+  assert.deepEqual(futures.map(({ slug, status }) => ({ slug, status })), [
+    { slug: "memoria-flash", status: "coming-soon" }, { slug: "tiro-perfecto", status: "coming-soon" },
+  ]);
+  assert.equal(new Set([...migrated, ...futures].map(({ id }) => id)).size, 7);
+  for (const { id } of futures) assert.match(id, /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/);
+});
+
+isolatedTest("canonical UUID keys and unique public slugs are enforced", async () => {
+  const { rows } = await db.query(`select a.attname, format_type(a.atttypid, a.atttypmod) as data_type
+    from pg_attribute a where a.attrelid = 'public.games'::regclass and a.attname = 'id' and not a.attisdropped`);
+  assert.deepEqual(rows, [{ attname: "id", data_type: "uuid" }]);
+  await rejectsSql("insert into public.games (slug, name, status) values ('bolas', 'Duplicate', 'available')", [], "23505");
+  await rejectsSql("insert into public.games (id, slug, name, status) values ($1, 'duplicate-id', 'Duplicate', 'available')", [BALL_GAME], "23505");
+  const primaryKey = (await db.query("select pg_get_constraintdef(oid) as definition from pg_constraint where conrelid = 'public.games'::regclass and contype = 'p'")).rows;
+  assert.deepEqual(primaryKey, [{ definition: "PRIMARY KEY (id)" }]);
+});
+
+isolatedTest("modernized sessions use game_id UUID referencing games.id and Core user integrity", async () => {
+  const columns = (await db.query("select column_name, udt_name from information_schema.columns where table_schema = 'public' and table_name = 'game_sessions'")).rows;
+  for (const name of ["id", "user_id", "game_id", "mode", "status", "score", "duration_ms", "metrics", "client_version", "rejection_reason", "started_at", "submitted_at", "validated_at", "expires_at", "created_at", "updated_at"]) {
+    assert.ok(columns.some(({ column_name }) => column_name === name), name);
+  }
+  assert.ok(columns.some(({ column_name, udt_name }) => column_name === "game_id" && udt_name === "uuid"));
+  assert.ok(!columns.some(({ column_name }) => column_name === "game_slug"));
+  const foreignKeys = (await db.query("select pg_get_constraintdef(oid) as definition from pg_constraint where conrelid = 'public.game_sessions'::regclass and contype = 'f'")).rows;
+  assert.ok(foreignKeys.some(({ definition }) => /FOREIGN KEY \(game_id\) REFERENCES games\(id\)/.test(definition)));
+  assert.ok(foreignKeys.some(({ definition }) => /FOREIGN KEY \(user_id\) REFERENCES player_progress\(user_id\)/.test(definition)));
+  const policies = (await db.query("select policyname, cmd from pg_policies where schemaname = 'public' and tablename = 'game_sessions'")).rows;
+  assert.ok(policies.every(({ cmd }) => cmd === "SELECT"));
+  assert.ok(!policies.some(({ policyname }) => policyname === "Users can start own game sessions"));
+  await startSession();
+  assert.deepEqual((await db.query("select g.slug from public.game_sessions s join public.games g on g.id = s.game_id where s.id = $1", [SESSION])).rows, [{ slug: "atrapa-monedas" }]);
+  await rejectsSql("update public.game_sessions set game_id = $2 where id = $1", [SESSION, BALL_GAME]);
+});
+
+isolatedTest("legacy modes and statuses cannot enter modern sessions", async () => {
+  for (const mode of ["tournament", "mission"]) {
+    await rejectsSql("insert into public.game_sessions (user_id, game_id, mode, expires_at) values ($1, $2, $3, now() + interval '1 hour')", [USER, BALL_GAME, mode]);
+  }
+  for (const status of ["completed", "cancelled", "invalid"]) {
+    await rejectsSql("insert into public.game_sessions (user_id, game_id, mode, status, expires_at) values ($1, $2, 'practice', $3, now() + interval '1 hour')", [USER, BALL_GAME, status]);
+  }
+});
+
+test("nonempty legacy sessions abort atomically and retain the existing browser policy", async () => {
+  await withLegacy(async (fresh) => {
+    await fresh.query("select set_config('request.jwt.claim.sub', $1, false)", [USER]);
+    await fresh.exec("set role authenticated");
+    await fresh.query("insert into public.game_sessions (id, user_id, game_id, mode) values ($1, $2, $3, 'practice')", [SESSION, USER, COIN_GAME]);
+    await fresh.exec("reset role");
+    await assertLegacyRollback(fresh, () => fresh.exec(migration), /game_sessions|sesion|fila/i);
+    assert.equal((await fresh.query("select has_table_privilege('authenticated', 'public.game_sessions', 'INSERT') as can_insert")).rows[0].can_insert, true);
+    assert.equal((await fresh.query("select count(*)::int as count from public.game_sessions")).rows[0].count, 1);
+  });
+});
+
+test("legacy adoption preserves customized names and future games already present", async () => {
+  await withLegacy(async (fresh) => {
+    await fresh.exec("update public.games set name = 'Atrapa Monedas original' where slug = 'atrapa-monedas'");
+    await fresh.exec("alter table public.games drop constraint games_status_check; alter table public.games add constraint games_status_check check (status in ('active', 'inactive', 'coming-soon'))");
+    await fresh.query("insert into public.games (id, slug, name, status, created_at) values ($1, 'tiro-perfecto', 'Tiro original', 'coming-soon', '2026-03-04T05:06:07Z')", [SESSION]);
+    const prior = (await fresh.query("select id, slug, name, created_at from public.games order by slug")).rows;
+    await fresh.exec(migration);
+    assert.deepEqual((await fresh.query("select id, slug, name, created_at from public.games where slug <> 'memoria-flash' order by slug")).rows, prior);
+    assert.equal((await fresh.query("select count(*)::int as count from public.games")).rows[0].count, 7);
+    assert.equal((await fresh.query("select status from public.games where id = $1", [COIN_GAME])).rows[0].status, "available");
+  });
+});
+
+test("a missing legacy slug uniqueness constraint is added after checking existing values", async () => {
+  await withLegacy(async (fresh) => {
+    await fresh.exec("alter table public.games drop constraint games_slug_key");
+    await fresh.exec(migration);
+    await assert.rejects(fresh.exec("insert into public.games (slug, name, status) values ('bolas', 'Duplicate', 'available')"), (error) => error.code === "23505");
+    assert.equal((await fresh.query("select count(*)::int as count from public.games")).rows[0].count, 7);
+  });
+});
+
+for (const [name, change] of [
+  ["duplicate slugs", "alter table public.games drop constraint games_slug_key; insert into public.games (slug, name) values ('bolas', 'Duplicate')"],
+  ["a required slug missing", "delete from public.games where slug = 'bolas'"],
+  ["invalid profiles identity", "alter table public.profiles alter column id type text using id::text"],
+  ["an unexpected legacy expression index", "create index unexpected_game_expr_idx on public.games (lower(slug))"],
+  ["unknown games columns", "alter table public.games add column unrecognized text"],
+  ["unknown session columns", "alter table public.game_sessions add column unrecognized text"],
+  ["an altered legacy mode check", "alter table public.game_sessions drop constraint game_sessions_mode_check; alter table public.game_sessions add constraint game_sessions_mode_check check (mode in ('practice','tournament','mission','forged'))"],
+  ["an altered legacy user foreign key", "alter table public.game_sessions drop constraint game_sessions_user_id_fkey; alter table public.game_sessions add constraint game_sessions_user_id_fkey foreign key (user_id) references public.profiles(id)"],
+  ["partial Core tables", "create table public.player_progress (marker text); insert into public.player_progress values ('keep partial')"],
+  ["an unexpected legacy trigger", "create function public.unexpected_game_trigger() returns trigger language plpgsql as $$ begin return new; end; $$; create trigger unexpected_game_trigger before update on public.games for each row execute function public.unexpected_game_trigger()"],
+]) {
+  test(`preflight rejects ${name} without changing legacy data`, async () => {
+    await withLegacy(async (fresh) => {
+      await fresh.exec(change);
+      await assertLegacyRollback(fresh, () => fresh.exec(migration), (error) => error.code === "P0001");
+    });
+  });
+}
+
+test("fresh installation without legacy games remains supported", async () => {
+  const fresh = new PGlite();
+  try {
+    await fresh.exec(bootstrap);
+    const before = (await fresh.exec(inspection)).flatMap(({ rows }) => rows);
+    assert.ok(before.length > 0);
+    await fresh.exec(migration);
+    await fresh.exec(migration);
+    const catalog = (await fresh.query("select id, slug, status from public.games order by slug")).rows;
+    assert.equal(catalog.length, 7);
+    assert.equal(new Set(catalog.map(({ id }) => id)).size, 7);
+    assert.equal(catalog.filter(({ status }) => status === "available").length, 5);
+    assert.equal((await fresh.query("select count(*)::int as count from public.game_sessions")).rows[0].count, 0);
+  } finally { await fresh.close(); }
+});
+
+isolatedTest("started sessions are born without scores, duration or result metrics", async () => {
+  for (const [score, duration, metrics] of [[1, null, "{}"], [null, 1000, "{}"], [null, null, '{"result":25}']]) {
+    await rejectsSql("insert into public.game_sessions (user_id, game_id, mode, expires_at, score, duration_ms, metrics) values ($1, $2, 'practice', now() + interval '1 hour', $3, $4, $5::jsonb)", [USER, BALL_GAME, score, duration, metrics]);
+  }
+});
+
+test("a dependent legacy sessions view prevents reconstruction and rolls everything back", async () => {
+  await withLegacy(async (fresh) => {
+    await fresh.exec("create view public.saved_legacy_sessions as select id, game_id from public.game_sessions");
+    await assertLegacyRollback(fresh, () => fresh.exec(migration), (error) => error.code === "2BP01");
+    assert.deepEqual((await fresh.query("select * from public.saved_legacy_sessions")).rows, []);
+  });
+});
+
 test("migration reapply preserves data and clears accidental table, column and function grants", async () => {
   await validateSession();
   await ledger("xp_ledger", 55, "persistent-xp", USER, SESSION);
@@ -316,8 +494,12 @@ test("migration reapply preserves data and clears accidental table, column and f
     grant execute on function theretos_core.create_player_progress() to public;
     grant usage on schema theretos_core to public;
   `);
+  const catalogBefore = (await db.query("select * from public.games order by slug")).rows;
+  const sessionsBefore = (await db.query("select * from public.game_sessions order by id")).rows;
   await db.exec(migration);
   await db.exec(migration);
+  assert.deepEqual((await db.query("select * from public.games order by slug")).rows, catalogBefore);
+  assert.deepEqual((await db.query("select * from public.game_sessions order by id")).rows, sessionsBefore);
   assert.deepEqual(await progress(), { xp_total: "55", tickets_balance: "7", level: 1, games_played: "1" });
   assert.equal((await db.query("select status from public.games where slug = 'bolas'")).rows[0].status, "disabled");
   const checks = await db.query(`select
@@ -341,11 +523,13 @@ test("migration fails atomically for inherited write grants without silently cha
 test("migration refuses an unrecognized existing table and preserves its data", async () => {
   await db.exec("alter table public.games rename to preserved_core_games; create table public.games (marker text); insert into public.games values ('keep me')");
   try {
-    await assert.rejects(db.exec(migration), /Conflicto con public.games/);
+    await assert.rejects(db.exec(migration), /Estructura Core alterada en public.games/);
     await db.exec("rollback");
     assert.deepEqual((await db.query("select marker from public.games")).rows, [{ marker: "keep me" }]);
     assert.equal((await db.query("select count(*)::int as count from public.preserved_core_games")).rows[0].count, 7);
   } finally {
+    // Always restore the fixture even when an assertion about the error fails.
+    await db.exec("rollback");
     // Only the disposable in-memory fixture is removed, never a hosted database.
     await db.exec("drop table public.games; alter table public.preserved_core_games rename to games");
   }
@@ -368,6 +552,27 @@ test("unrelated relation colliding with a required unique index aborts initial m
     await assert.rejects(fresh.exec(migration), (error) => error.code === "42P07");
     await fresh.exec("rollback");
     assert.deepEqual((await fresh.query("select marker from public.xp_ledger_session_unique")).rows, [{ marker: "unrelated data" }]);
+    assert.equal((await fresh.query("select to_regclass('public.games') as core_table")).rows[0].core_table, null);
+  } finally { await fresh.close(); }
+});
+
+test("preflight rejects disabled session and ledger safety triggers", async () => {
+  for (const [table, trigger] of [["game_sessions", "theretos_core_session_guard"], ["xp_ledger", "theretos_core_immutable"]]) {
+    await db.exec(`begin; alter table public.${table} disable trigger ${trigger}`);
+    try { await assert.rejects(db.exec(migration), /Estructura Core alterada/); }
+    finally { await db.exec("rollback"); }
+    assert.equal((await db.query("select tgenabled from pg_trigger where tgrelid = $1::regclass and tgname = $2", [`public.${table}`, trigger])).rows[0].tgenabled, "O");
+  }
+});
+
+test("unrelated relation colliding with a required ordinary index aborts atomically", async () => {
+  const fresh = new PGlite();
+  try {
+    await fresh.exec(bootstrap);
+    await fresh.exec("create table public.game_sessions_user_started_idx (marker text); insert into public.game_sessions_user_started_idx values ('keep unrelated')");
+    await assert.rejects(fresh.exec(migration), (error) => ["P0001", "42P07"].includes(error.code));
+    await fresh.exec("rollback");
+    assert.deepEqual((await fresh.query("select marker from public.game_sessions_user_started_idx")).rows, [{ marker: "keep unrelated" }]);
     assert.equal((await fresh.query("select to_regclass('public.games') as core_table")).rows[0].core_table, null);
   } finally { await fresh.close(); }
 });

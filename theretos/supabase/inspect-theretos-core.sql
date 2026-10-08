@@ -1,8 +1,11 @@
 -- THERETOS Core v1: SOLO LECTURA. Ejecutar completo antes y despues de aplicar.
+-- Reconoce games/game_sessions legadas y Core con IDs UUID; no transforma datos.
 -- No requiere que ya existan las tablas Core. NULL en los resumenes significa
 -- que falta una tabla/columna requerida; no equivale a un conteo de cero.
 -- Ejecutar con el propietario en SQL Editor: los conteos deben ver todas las filas.
 begin transaction read only;
+-- Si RLS ocultaria filas, fallar en vez de informar un cero falso.
+set local row_security = off;
 
 -- 1. Inventario, propietario y RLS. Las tablas faltantes tambien aparecen.
 with expected(name) as (
@@ -98,7 +101,8 @@ order by r.rolname, c.relname;
 select r.rolname, c.relname as table_name, a.attname as column_name,
        pg_catalog.has_column_privilege(r.oid, c.oid, a.attnum, 'SELECT') as can_select,
        pg_catalog.has_column_privilege(r.oid, c.oid, a.attnum, 'INSERT') as can_insert,
-       pg_catalog.has_column_privilege(r.oid, c.oid, a.attnum, 'UPDATE') as can_update
+       pg_catalog.has_column_privilege(r.oid, c.oid, a.attnum, 'UPDATE') as can_update,
+       pg_catalog.has_column_privilege(r.oid, c.oid, a.attnum, 'REFERENCES') as can_reference
 from pg_catalog.pg_class c
 join pg_catalog.pg_namespace n on n.oid = c.relnamespace
 join pg_catalog.pg_attribute a on a.attrelid = c.oid
@@ -163,7 +167,7 @@ order by r.rolname, function_name;
 
 -- 10. Conteos sin resolver tablas inexistentes en el parseo del script.
 -- query_to_xml solo ejecuta SELECT de nombres fijos de esta lista.
-with counted(name) as (values ('profiles'), ('player_progress'))
+with counted(name) as (values ('profiles'), ('games'), ('game_sessions'), ('player_progress'))
 select name as table_name,
        case when pg_catalog.to_regclass('public.' || name) is not null then
          ((pg_catalog.xpath('/row/row_count/text()', pg_catalog.query_to_xml(
@@ -184,14 +188,69 @@ then ((pg_catalog.xpath('/row/missing_progress/text()', pg_catalog.query_to_xml(
   false, true, ''
 )))[1]::text)::bigint end as profiles_without_progress;
 
--- 11. Seed observado: XML de filas para funcionar antes de crear public.games.
+-- 11. Contrato UUID del catalogo y su relacion con sesiones.
+-- Antes: UUID/FK esperados en el legado; despues: todos deben ser true.
+-- Un slug UNIQUE exige indice completo, valido, sin predicado ni expresiones.
+with relations as (
+  select pg_catalog.to_regclass('public.games') as games_oid,
+         pg_catalog.to_regclass('public.game_sessions') as sessions_oid
+), fields as (
+  select r.*,
+    (select attnum from pg_catalog.pg_attribute
+     where attrelid = r.games_oid and attname = 'id' and not attisdropped) as game_id_attnum,
+    (select attnum from pg_catalog.pg_attribute
+     where attrelid = r.games_oid and attname = 'slug' and not attisdropped) as slug_attnum,
+    (select attnum from pg_catalog.pg_attribute
+     where attrelid = r.sessions_oid and attname = 'game_id' and not attisdropped) as session_game_attnum
+  from relations r
+)
+select
+  case when games_oid is not null then exists (
+    select 1 from pg_catalog.pg_attribute
+    where attrelid = games_oid and attnum = game_id_attnum
+      and atttypid = 'uuid'::regtype and attnotnull
+  ) end as games_id_uuid_not_null,
+  case when games_oid is not null then exists (
+    select 1 from pg_catalog.pg_constraint
+    where conrelid = games_oid and contype = 'p'
+      and conkey = array[game_id_attnum]::smallint[] and not condeferrable
+  ) end as games_id_primary_key,
+  case when games_oid is not null then exists (
+    select 1 from pg_catalog.pg_index
+    where indrelid = games_oid and indisunique and indisvalid and indisready
+      and indpred is null and indexprs is null and indnkeyatts = 1
+      and indkey[0] = slug_attnum
+  ) end as games_slug_unique,
+  case when sessions_oid is not null then exists (
+    select 1 from pg_catalog.pg_attribute
+    where attrelid = sessions_oid and attnum = session_game_attnum
+      and atttypid = 'uuid'::regtype and attnotnull
+  ) end as game_sessions_game_id_uuid_not_null,
+  case when sessions_oid is not null and games_oid is not null then exists (
+    select 1 from pg_catalog.pg_constraint
+    where conrelid = sessions_oid and contype = 'f' and convalidated
+      and conkey = array[session_game_attnum]::smallint[]
+      and confrelid = games_oid and confkey = array[game_id_attnum]::smallint[]
+  ) end as game_sessions_game_id_references_games_id
+from fields;
+
+-- Catalogo observado: conservar este resultado antes y compararlo despues.
+-- Los cinco UUID, slug, name y created_at legados deben permanecer identicos.
 select case when (
   select count(*) from information_schema.columns
   where table_schema = 'public' and table_name = 'games'
-    and column_name in ('slug', 'name', 'status')
-) = 3 then pg_catalog.query_to_xml(
-  'select slug, name, status from public.games order by slug', false, true, ''
+    and column_name in ('id', 'slug', 'name', 'status', 'created_at')
+) = 5 then pg_catalog.query_to_xml(
+  'select id, slug, name, status, created_at from public.games order by slug', false, true, ''
 ) end as seeded_games;
+
+select case when exists (
+  select 1 from information_schema.columns
+  where table_schema = 'public' and table_name = 'games' and column_name = 'slug'
+) then pg_catalog.query_to_xml(
+  'select slug, count(*) as copies from public.games group by slug having count(*) > 1 order by slug',
+  false, true, ''
+) end as duplicate_game_slugs;
 
 -- 12. Reconciliacion de agregados; cero diferencias es el resultado esperado.
 -- No corrige balances ni expone UUID de usuarios. Ejecutar como propietario.
