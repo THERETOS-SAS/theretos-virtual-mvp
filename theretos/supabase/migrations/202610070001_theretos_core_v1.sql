@@ -506,7 +506,7 @@ on conflict (user_id) do nothing;
 
 insert into public.games (slug, name, status) values
   ('atrapa-monedas', 'Atrapa Monedas', 'available'),
-  ('tap-frenetico', 'Tap FrenÃ©tico', 'available'),
+  ('tap-frenetico', 'Tap Frenético', 'available'),
   ('revienta-globos', 'Revienta Globos', 'available'),
   ('golpea-topos', 'Golpea Topos', 'available'),
   ('bolas', 'Bolas', 'available'),
