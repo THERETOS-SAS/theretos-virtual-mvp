@@ -205,9 +205,17 @@ begin
     and ((attname in ('id','user_id','game_id') and atttypid = 'uuid'::regtype and attnotnull)
       or (attname in ('mode','status') and atttypid = 'text'::regtype and attnotnull)
       or (attname in ('score','duration_ms') and atttypid in ('integer'::regtype,'bigint'::regtype) and not attnotnull))) <> 7
-    or exists (select 1 from pg_attribute where attrelid = sessions_oid and attnum > 0
-      and attname not in ('id','user_id','game_id','mode','status','score','duration_ms')
-      and not (attname in ('started_at','completed_at','created_at','updated_at') and atttypid = 'timestamptz'::regtype)) then
+    or exists (
+      select 1 from pg_attribute
+      where attrelid = sessions_oid and attnum > 0
+        and attname not in ('id','user_id','game_id','mode','status','score','duration_ms')
+        and not (
+          (attname = 'started_at' and atttypid = 'timestamptz'::regtype and attnotnull)
+          or (attname = 'ended_at' and atttypid = 'timestamptz'::regtype and not attnotnull)
+          or (attname = 'metadata' and atttypid = 'jsonb'::regtype and attnotnull)
+          or (attname = 'created_at' and atttypid = 'timestamptz'::regtype and attnotnull)
+        )
+    ) then
     raise exception 'Columnas game_sessions legacy incompatibles.';
   end if;
   if (select count(*) from pg_constraint where conrelid = sessions_oid and contype <> 'n') <> 7 then

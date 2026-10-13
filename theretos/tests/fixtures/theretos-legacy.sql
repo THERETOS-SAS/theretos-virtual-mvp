@@ -20,15 +20,19 @@ create policy "Anyone can view active games" on public.games
   for select to anon, authenticated using (status = 'active');
 grant select on public.games to anon, authenticated;
 
--- Only the seven columns established by the supplied constraints are assumed.
+-- Observed legacy game_sessions structure in theretos-2-dev.
 create table public.game_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   game_id uuid not null references public.games(id),
-  mode text not null constraint game_sessions_mode_check check (mode in ('practice', 'tournament', 'mission')),
+  mode text not null default 'practice' constraint game_sessions_mode_check check (mode in ('practice', 'tournament', 'mission')),
   status text not null default 'started' constraint game_sessions_status_check check (status in ('started', 'completed', 'cancelled', 'invalid')),
   score integer constraint game_sessions_score_check check (score is null or score >= 0),
-  duration_ms integer constraint game_sessions_duration_ms_check check (duration_ms is null or duration_ms >= 0)
+  duration_ms integer constraint game_sessions_duration_ms_check check (duration_ms is null or duration_ms >= 0),
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
 );
 alter table public.game_sessions enable row level security;
 create policy "Users can start own game sessions" on public.game_sessions
