@@ -1,7 +1,8 @@
 # Inicio de partidas Core v1
 
-`POST /api/game-sessions/start` crea una partida real. Todavía no hay conexión
-desde los juegos visuales, envío de resultados, validación ni recompensas.
+`POST /api/game-sessions/start` crea una partida real. El envío posterior usa
+la ruta independiente descrita en [GAME-SESSION-SUBMIT.md](GAME-SESSION-SUBMIT.md).
+Todavía no hay conexión desde los juegos visuales, validación ni recompensas.
 
 ## Contrato HTTP
 
